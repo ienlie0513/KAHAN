@@ -1,1 +1,5 @@
 word2vec
+.vscode
+.DS_Store
+data/gossipcop_no_ignore_s.tsv
+data/politifact_no_ignore.tsv
