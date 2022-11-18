@@ -35,8 +35,6 @@ def get_data(data_dir, data_source):
     entities = []
     labels = []
 
-    # TODO: generate PIL image objects from all the image urls and return as numpy array
-
     for idx in range(df.id.shape[0]):
         # load news content
         text = df.text[idx]
@@ -319,8 +317,6 @@ class KaDataset(data.Dataset):
 
         return word_vec, le, lsb, lc
 
-    # TODO: make function for embedding the PIL image objects using VGG19
-
     # return data ((contents, comments), label)
     def __getitem__(self, index):
         content = self.contents[index]
@@ -331,8 +327,6 @@ class KaDataset(data.Dataset):
         content_vec, ln, ls = self._news_content_preprocess(content)
         comment_vec, le, lsb, lc = self._build_subevents(comment)
         ent_vec, lk = self._knowledge_preprocesss(entity)
-
-        # TODO: concatenate the VGG19 embeddings of the PIL image objects to the returned data
         
         return ((torch.tensor(content_vec), torch.tensor(ln), torch.tensor(ls)), (torch.tensor(comment_vec), torch.tensor(le), torch.tensor(lsb), torch.tensor(lc)), (torch.tensor(ent_vec), torch.tensor(lk))), torch.tensor(label)
 
