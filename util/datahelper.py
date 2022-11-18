@@ -14,6 +14,12 @@ from nltk.corpus import stopwords
 from gensim.models.keyedvectors import KeyedVectors
 from wikipedia2vec import Wikipedia2Vec
 
+from PIL import Image
+from io import BytesIO
+import requests
+
+from torchvision.models import vgg19, VGG19_Weights
+
 # get entity claim from preprocessed tcv file
 def get_entity_claim(data_dir, data_source):
     df = pd.read_csv("{}/{}_no_ignore_clm.tsv".format(data_dir, data_source), sep='\t') 
@@ -33,9 +39,8 @@ def get_data(data_dir, data_source):
     contents = []
     comments = []
     entities = []
+    images = []
     labels = []
-
-    # TODO: generate PIL image objects from all the image urls and return as numpy array
 
     for idx in range(df.id.shape[0]):
         # load news content
@@ -63,15 +68,21 @@ def get_data(data_dir, data_source):
         ens = [en for ens in df.entities[idx].split('||') for en in ens.split(' ') if en != '']
         entities.append(ens)
 
+        # load images
+        response = requests.get(df.img_urls[idx])
+        img = Image.open(BytesIO(response.content))
+        images.append(img)
+
         # load labels
         labels.append(df.label[idx])
 
     contents = np.asarray(contents)
     comments = np.asarray(comments)
     entities = np.asarray(entities)
+    images = np.asarray(images)
     labels = np.asarray(labels)
 
-    return contents, comments, entities, labels
+    return contents, comments, entities, images, labels
 
 
 class KaDataset(data.Dataset):
@@ -89,10 +100,11 @@ class KaDataset(data.Dataset):
             max_cmt: max number of comments in a subevent
             intervals: range of time index, for building time-based subevents
     """
-    def __init__(self, contents, comments, entities, labels, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec, sb_type, max_len=60, max_sent=30, max_ent=100, M=5, max_cmt=50, intervals=100):
+    def __init__(self, contents, comments, entities, images, labels, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec, sb_type, max_len=60, max_sent=30, max_ent=100, M=5, max_cmt=50, intervals=100):
         self.contents = contents
         self.comments = comments
         self.entities = entities
+        self.images = images
         self.labels = labels
 
         self.sb_type = sb_type
@@ -319,22 +331,47 @@ class KaDataset(data.Dataset):
 
         return word_vec, le, lsb, lc
 
-    # TODO: make function for embedding the PIL image objects using VGG19
+    # create VGG19 embedding of the PIL image object and return
+    def _image_preprocess(self, image):
+        # initialize the weight transform
+        weigths = VGG19_Weights.DEFAULT
+        preprocess = weigths.transforms()
+        # apply the transform to the image
+        image_transformed = preprocess(image)
+        # initialize the model
+        model = vgg19(weights=weigths)
+        # select the layer to extract features from
+        layer = model._modules.get('avgpool')
+        # set model to evaluation mode
+        model.eval()
+        # create empty embedding
+        embedding = torch.zeros(25088)
+        # create a function that will copy the output of a layer
+        def copy_data(m, i, o):
+            embedding.copy_(o.flatten())
+        # attach that function to our selected layer
+        h = layer.register_forward_hook(copy_data)
+        # run the model on our transformed image
+        model(image_transformed.unsqueeze(0))
+        # detach our copy function from the layer
+        h.remove()
+        # return the feature vector
+        return embedding
 
     # return data ((contents, comments), label)
     def __getitem__(self, index):
         content = self.contents[index]
         comment = self.comments[index]
         entity = self.entities[index]
+        image = self.images[index]
         label = self.labels[index]
 
         content_vec, ln, ls = self._news_content_preprocess(content)
         comment_vec, le, lsb, lc = self._build_subevents(comment)
         ent_vec, lk = self._knowledge_preprocesss(entity)
-
-        # TODO: concatenate the VGG19 embeddings of the PIL image objects to the returned data
+        img_vec = self._image_preprocess(image)
         
-        return ((torch.tensor(content_vec), torch.tensor(ln), torch.tensor(ls)), (torch.tensor(comment_vec), torch.tensor(le), torch.tensor(lsb), torch.tensor(lc)), (torch.tensor(ent_vec), torch.tensor(lk))), torch.tensor(label)
+        return ((torch.tensor(content_vec), torch.tensor(ln), torch.tensor(ls)), (torch.tensor(comment_vec), torch.tensor(le), torch.tensor(lsb), torch.tensor(lc)), (torch.tensor(ent_vec), torch.tensor(lk)), img_vec), torch.tensor(label)
 
 
 if __name__ == '__main__':
@@ -347,9 +384,9 @@ if __name__ == '__main__':
     wiki2vec = Wikipedia2Vec.load("../word2vec/enwiki_20180420_100d.pkl")
 
     print ("KaDataset")
-    contents, comments, entities, labels = get_data("./data", "politifact", "KaDataset")
+    contents, comments, entities, images, labels = get_data("./data", "politifact", "KaDataset")
     claim_dict = get_entity_claim("./data", "politifact")
-    dataset = KaDataset(contents, comments, entities, labels, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec, sb_type=0)
+    dataset = KaDataset(contents, comments, entities, images, labels, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec, sb_type=0)
     print ("politifact dataset: ", len(dataset))
     ((cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk)), lb = dataset[1][0], dataset[1][1]
     print (cnt.shape, ln, ls)
@@ -357,9 +394,9 @@ if __name__ == '__main__':
     print (cmt.shape, le, lsb, lc)
     print (lb, end='\n---\n')
 
-    contents, comments, entities, labels = get_data("./data", "gossipcop", "KaDataset")
+    contents, comments, entities, images, labels = get_data("./data", "gossipcop", "KaDataset")
     claim_dict = get_entity_claim("./data", "politifact")
-    dataset = KaDataset(contents, comments, entities, labels, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec, sb_type=0)
+    dataset = KaDataset(contents, comments, entities, images, labels, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec, sb_type=0)
     print ("gossipcop dataset: ", len(dataset))
     ((cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk)), lb = dataset[1][0], dataset[1][1]
     print (cnt.shape, ln, ls)
