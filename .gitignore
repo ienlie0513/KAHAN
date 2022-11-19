@@ -3,6 +3,7 @@ word2vec
 .vscode
 .DS_Store
 data
+fakenewsnet_dataset
 
 # Files
 log.txt
