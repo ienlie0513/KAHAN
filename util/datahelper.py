@@ -69,7 +69,7 @@ def get_data(data_dir, data_source):
         entities.append(ens)
 
         # load images
-        response = requests.get(df.img_urls[idx])
+        response = requests.get(df.image[idx])
         img = Image.open(BytesIO(response.content))
         images.append(img)
 
