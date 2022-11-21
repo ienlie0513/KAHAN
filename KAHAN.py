@@ -208,8 +208,9 @@ class CHAN(nn.Module):
 
 class KAHAN(nn.Module):
 
-    def __init__(self, num_class, word2vec_cnt, word2vec_cmt, emb_size=100, hid_size=100, max_sent=50, dropout=0.3):
+    def __init__(self, num_class, word2vec_cnt, word2vec_cmt, data_type=0, emb_size=100, hid_size=100, max_sent=50, dropout=0.3):
         super(KAHAN, self).__init__()
+        self.data_type = data_type
 
         self.news = NHAN(word2vec_cnt, emb_size, hid_size, max_sent, dropout)
         self.comment = CHAN(word2vec_cmt, emb_size, hid_size, dropout)
@@ -222,7 +223,13 @@ class KAHAN(nn.Module):
         content_vec, n_ent_attn = self.news(*cnt_input, *ent_input)
         comment_vec, c_ent_attn = self.comment(*cmt_input, *ent_input)
 
-        out = torch.cat((content_vec, comment_vec), dim=1)
+        if self.data_type == 0:
+            out = content_vec
+        elif self.data_type == 1:
+            out = comment_vec
+        elif self.data_type == 2:
+            out = torch.cat((content_vec, comment_vec), dim=1)
+
         out = self.lin_cat(out)
         out = self.relu(out)
         out = self.lin_out(out)
@@ -234,7 +241,12 @@ class KAHAN(nn.Module):
         content_vec,_ = self.news(*cnt_input, *ent_input)
         comment_vec,_ = self.comment(*cmt_input, *ent_input)
 
-        out = torch.cat((content_vec, comment_vec), dim=1)
+        if self.data_type == 0:
+            out = content_vec
+        elif self.data_type == 1:
+            out = comment_vec
+        elif self.data_type == 2:
+            out = torch.cat((content_vec, comment_vec), dim=1)
         out = self.lin_cat(out)
         out = self.relu(out)
         out = self.lin_out(out)
@@ -243,17 +255,32 @@ class KAHAN(nn.Module):
 
 
 # model specific train function
-def train(input_tensor, target_tensor, model, optimizer, criterion, device):
-    (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk) = input_tensor
-    cnt = cnt.cuda().to(device)
-    cmt = cmt.cuda().to(device)
-    ent = ent.cuda().to(device)
+def train(input_tensor, target_tensor, model, optimizer, criterion, device, data_type=0):
+    if data_type == 0:
+        (cnt, ln, ls), (ent, lk) = input_tensor
+    elif data_type == 1:
+        (cmt, le, lsb, lc), (ent, lk) = input_tensor
+    elif data_type == 2:
+        (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk) = input_tensor
+
+    print(device)
+
+    cnt = cnt.to(device)
+    cmt = cmt.to(device)
+    ent = ent.to(device)
     target_tensor = target_tensor.to(device)
+
+    print(device)
 
     model.train()
     optimizer.zero_grad()
     
-    output = model((cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk))
+    if data_type == 0:
+        output = model((cnt, ln, ls), (ent, lk))
+    elif data_type == 1:
+        output = model((cmt, le, lsb, lc), (ent, lk))
+    elif data_type == 2:
+        output = model((cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk))
 
     loss = criterion(output, target_tensor)
 
@@ -265,7 +292,7 @@ def train(input_tensor, target_tensor, model, optimizer, criterion, device):
     return loss.item(), correct
 
 # model specific evaluation function
-def evaluate(model, testset, device, batch_size=32):
+def evaluate(model, testset, device, batch_size=32, data_type=0):
     testloader = data.DataLoader(testset, batch_size)
     
     total = len(testset)
@@ -278,13 +305,24 @@ def evaluate(model, testset, device, batch_size=32):
     model.eval()
     with torch.no_grad():    
         for input_tensor, target_tensor in testloader:
-            (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk) = input_tensor
-            cnt = cnt.cuda().to(device)
-            cmt = cmt.cuda().to(device)
-            ent = ent.cuda().to(device)
+            if data_type == 0:
+                (cnt, ln, ls), (ent, lk) = input_tensor
+            elif data_type == 1:
+                (cmt, le, lsb, lc), (ent, lk) = input_tensor
+            elif data_type == 2:
+                (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk) = input_tensor
+
+            cnt = cnt.to(device)
+            cmt = cmt.to(device)
+            ent = ent.to(device)
             target_tensor = target_tensor.to(device)
     
-            output = model((cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk))
+            if data_type == 0:
+                output = model((cnt, ln, ls), (ent, lk))
+            elif data_type == 1:
+                output = model((cmt, le, lsb, lc), (ent, lk))
+            elif data_type == 2:
+                output = model((cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk))
 
             loss = criterion(output, target_tensor)
             loss_total += loss.item()*len(input_tensor)

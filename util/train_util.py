@@ -25,7 +25,7 @@ def trainIters(model, trainset, validset, train, evaluate, epochs=100, learning_
     model = model.to(device)
     optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     criterion = nn.CrossEntropyLoss()
-    trainloader = data.DataLoader(trainset, batch_size, shuffle = True, pin_memory=True, num_workers=12)
+    trainloader = data.DataLoader(trainset, batch_size, shuffle = True, pin_memory=True, num_workers=0)
 
     progress = Progressor('py', total=print_every, log=log)
 

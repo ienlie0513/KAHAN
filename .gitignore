@@ -4,6 +4,8 @@ word2vec
 .DS_Store
 data
 fakenewsnet_dataset
+REL
+apicache-py3
 
 # Files
 log.txt
@@ -16,6 +18,8 @@ __pycache__/
 
 # C extensions
 *.so
+
+*.ctrl
 
 # Distribution / packaging
 .Python
@@ -36,6 +40,8 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+
+.ctrl
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

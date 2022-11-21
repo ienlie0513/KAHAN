@@ -87,13 +87,14 @@ class KaDataset(data.Dataset):
             max_cmt: max number of comments in a subevent
             intervals: range of time index, for building time-based subevents
     """
-    def __init__(self, contents, comments, entities, labels, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec, sb_type, max_len=60, max_sent=30, max_ent=100, M=5, max_cmt=50, intervals=100):
+    def __init__(self, contents, comments, entities, labels, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec, sb_type, data_type=0, max_len=60, max_sent=30, max_ent=100, M=5, max_cmt=50, intervals=100):
         self.contents = contents
         self.comments = comments
         self.entities = entities
         self.labels = labels
 
         self.sb_type = sb_type
+        self.data_type = data_type
         
         self.max_len = max_len
         self.max_sent = max_sent
@@ -327,8 +328,15 @@ class KaDataset(data.Dataset):
         content_vec, ln, ls = self._news_content_preprocess(content)
         comment_vec, le, lsb, lc = self._build_subevents(comment)
         ent_vec, lk = self._knowledge_preprocesss(entity)
+
+        print(comment_vec, le, lsb, lc)
         
-        return ((torch.tensor(content_vec), torch.tensor(ln), torch.tensor(ls)), (torch.tensor(comment_vec), torch.tensor(le), torch.tensor(lsb), torch.tensor(lc)), (torch.tensor(ent_vec), torch.tensor(lk))), torch.tensor(label)
+        if self.data_type == 0:
+            return ((torch.tensor(content_vec), torch.tensor(ln), torch.tensor(ls)), (torch.tensor(ent_vec), torch.tensor(lk))), torch.tensor(label)
+        elif self.data_type == 1:
+            return ((torch.tensor(comment_vec), torch.tensor(le), torch.tensor(lsb), torch.tensor(lc)), torch.tensor(label))
+        elif self.data_type == 2:
+            return ((torch.tensor(content_vec), torch.tensor(ln), torch.tensor(ls)), (torch.tensor(comment_vec), torch.tensor(le), torch.tensor(lsb), torch.tensor(lc)), (torch.tensor(ent_vec), torch.tensor(lk))), torch.tensor(label)
 
 
 if __name__ == '__main__':

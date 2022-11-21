@@ -20,5 +20,5 @@
     "word2vec_dim": 100,
     "wiki2vec": "./word2vec/enwiki_20180420_100d.pkl",
     "wiki2vec_dim": 100,
-    "device": "cuda"
+    "device": "cpu"
 }
