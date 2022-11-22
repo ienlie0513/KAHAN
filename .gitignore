@@ -6,6 +6,7 @@ data
 fakenewsnet_dataset
 REL
 apicache-py3
+model_ckpts
 
 # Files
 log.txt

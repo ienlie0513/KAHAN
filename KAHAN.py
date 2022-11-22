@@ -18,7 +18,7 @@ class EmbedAttention(nn.Module):
     def _masked_softmax(self, mat, len_s, total_length):
         
         idxes = torch.arange(0, total_length, out=mat.data.new(total_length)).unsqueeze(1)
-        mask = (idxes<len_s.unsqueeze(0).to(idxes.get_device())).float().t()
+        mask = (idxes<len_s.unsqueeze(0).to(idxes.device)).float().t()
         
         exp = torch.exp(mat) * mask
         sum_exp = exp.sum(1, True)+0.0001
@@ -99,7 +99,7 @@ class NHAN(nn.Module):
 
         ## mask
         idxes = torch.arange(0, ent_embs.size(1), out=ent_embs.data.new(ent_embs.size(1))).unsqueeze(1)
-        mask = (idxes>=lk.unsqueeze(0).to(idxes.get_device())).t() # (batch, max_ent)
+        mask = (idxes>=lk.unsqueeze(0).to(idxes.device)).t() # (batch, max_ent)
 
         # news, entity, entity attention, get weighted ent_embed
         # Q sent: (batch, max_sent, 2*hidden)
@@ -135,7 +135,7 @@ class CHAN(nn.Module):
     def _reorder_input(self, input, le, lsb, lc):
         # (batch, M, max_comment, max_length) to (# of comments in the batch, max_length)
         reorder_input = [sb[:lsb[i][j]] for i, event in enumerate(input) for j, sb in enumerate(event[:le[i]])]
-        reorder_input = torch.cat(reorder_input, axis=0)
+        reorder_input = torch.cat(reorder_input, axis=0) if len(reorder_input) > 0 else torch.tensor([])
 
         reorder_lc = [k for i, l in enumerate(le) for j, s in enumerate(lsb[i][:l]) for k in lc[i][j][:s]]
 
@@ -188,7 +188,7 @@ class CHAN(nn.Module):
 
         # mask
         idxes = torch.arange(0, ent_embs.size(1), out=ent_embs.data.new(ent_embs.size(1))).unsqueeze(1)
-        mask = (idxes>=lk.unsqueeze(0).to(idxes.get_device())).t() # (batch, max_ent)
+        mask = (idxes>=lk.unsqueeze(0).to(idxes.device)).t() # (batch, max_ent)
 
         # subevent, entity, entity attention, get weighted ent_embed
         # Q sb: (batch, M, 2*hidden)
@@ -208,9 +208,8 @@ class CHAN(nn.Module):
 
 class KAHAN(nn.Module):
 
-    def __init__(self, num_class, word2vec_cnt, word2vec_cmt, data_type=0, emb_size=100, hid_size=100, max_sent=50, dropout=0.3):
+    def __init__(self, num_class, word2vec_cnt, word2vec_cmt, emb_size=100, hid_size=100, max_sent=50, dropout=0.3):
         super(KAHAN, self).__init__()
-        self.data_type = data_type
 
         self.news = NHAN(word2vec_cnt, emb_size, hid_size, max_sent, dropout)
         self.comment = CHAN(word2vec_cmt, emb_size, hid_size, dropout)
@@ -221,14 +220,9 @@ class KAHAN(nn.Module):
     def attn_map(self, cnt_input, cmt_input, ent_input):
         # (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk)
         content_vec, n_ent_attn = self.news(*cnt_input, *ent_input)
-        comment_vec, c_ent_attn = self.comment(*cmt_input, *ent_input)
+        comment_vec, c_ent_attn = self.comment(*cmt_input, *ent_input) if torch.count_nonzero(cmt_input[-1]) > 0 else (torch.tensor([]), torch.tensor([]))
 
-        if self.data_type == 0:
-            out = content_vec
-        elif self.data_type == 1:
-            out = comment_vec
-        elif self.data_type == 2:
-            out = torch.cat((content_vec, comment_vec), dim=1)
+        out = torch.cat((content_vec, comment_vec), dim=1)
 
         out = self.lin_cat(out)
         out = self.relu(out)
@@ -239,14 +233,9 @@ class KAHAN(nn.Module):
     def forward(self, cnt_input, cmt_input, ent_input):
         # (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk)
         content_vec,_ = self.news(*cnt_input, *ent_input)
-        comment_vec,_ = self.comment(*cmt_input, *ent_input)
+        comment_vec,_ = self.comment(*cmt_input, *ent_input) if torch.count_nonzero(cmt_input[-1]) > 0 else (torch.ones(cmt_input[0].size(0), 200), torch.tensor([]))
 
-        if self.data_type == 0:
-            out = content_vec
-        elif self.data_type == 1:
-            out = comment_vec
-        elif self.data_type == 2:
-            out = torch.cat((content_vec, comment_vec), dim=1)
+        out = torch.cat((content_vec, comment_vec), dim=1)
         out = self.lin_cat(out)
         out = self.relu(out)
         out = self.lin_out(out)
@@ -255,32 +244,17 @@ class KAHAN(nn.Module):
 
 
 # model specific train function
-def train(input_tensor, target_tensor, model, optimizer, criterion, device, data_type=0):
-    if data_type == 0:
-        (cnt, ln, ls), (ent, lk) = input_tensor
-    elif data_type == 1:
-        (cmt, le, lsb, lc), (ent, lk) = input_tensor
-    elif data_type == 2:
-        (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk) = input_tensor
-
-    print(device)
-
+def train(input_tensor, target_tensor, model, optimizer, criterion, device):
+    (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk) = input_tensor
     cnt = cnt.to(device)
     cmt = cmt.to(device)
     ent = ent.to(device)
     target_tensor = target_tensor.to(device)
 
-    print(device)
-
     model.train()
     optimizer.zero_grad()
     
-    if data_type == 0:
-        output = model((cnt, ln, ls), (ent, lk))
-    elif data_type == 1:
-        output = model((cmt, le, lsb, lc), (ent, lk))
-    elif data_type == 2:
-        output = model((cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk))
+    output = model((cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk))
 
     loss = criterion(output, target_tensor)
 
@@ -292,7 +266,7 @@ def train(input_tensor, target_tensor, model, optimizer, criterion, device, data
     return loss.item(), correct
 
 # model specific evaluation function
-def evaluate(model, testset, device, batch_size=32, data_type=0):
+def evaluate(model, testset, device, batch_size=32):
     testloader = data.DataLoader(testset, batch_size)
     
     total = len(testset)
@@ -305,24 +279,13 @@ def evaluate(model, testset, device, batch_size=32, data_type=0):
     model.eval()
     with torch.no_grad():    
         for input_tensor, target_tensor in testloader:
-            if data_type == 0:
-                (cnt, ln, ls), (ent, lk) = input_tensor
-            elif data_type == 1:
-                (cmt, le, lsb, lc), (ent, lk) = input_tensor
-            elif data_type == 2:
-                (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk) = input_tensor
-
+            (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk) = input_tensor
             cnt = cnt.to(device)
             cmt = cmt.to(device)
             ent = ent.to(device)
             target_tensor = target_tensor.to(device)
-    
-            if data_type == 0:
-                output = model((cnt, ln, ls), (ent, lk))
-            elif data_type == 1:
-                output = model((cmt, le, lsb, lc), (ent, lk))
-            elif data_type == 2:
-                output = model((cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk))
+
+            output = model((cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk))
 
             loss = criterion(output, target_tensor)
             loss_total += loss.item()*len(input_tensor)
