@@ -213,29 +213,29 @@ class KAHAN(nn.Module):
 
         self.news = NHAN(word2vec_cnt, emb_size, hid_size, max_sent, dropout)
         self.comment = CHAN(word2vec_cmt, emb_size, hid_size, dropout)
-        self.lin_cat = nn.Linear(hid_size*4, hid_size*2)
+        self.lin_cat = nn.Linear(hid_size*6, hid_size*2)
         self.lin_out = nn.Linear(hid_size*2, num_class)
         self.relu = nn.ReLU()
 
     def attn_map(self, cnt_input, cmt_input, ent_input):
         # (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk)
         content_vec, n_ent_attn = self.news(*cnt_input, *ent_input)
-        comment_vec, c_ent_attn = self.comment(*cmt_input, *ent_input) if torch.count_nonzero(cmt_input[-1]) > 0 else (torch.tensor([]), torch.tensor([]))
+        comment_vec, c_ent_attn = self.comment(*cmt_input, *ent_input) if torch.count_nonzero(cmt_input[-1]) > 0 else (torch.ones(cmt_input[0].size(0), 200), torch.tensor([]))
 
         out = torch.cat((content_vec, comment_vec), dim=1)
-
         out = self.lin_cat(out)
         out = self.relu(out)
         out = self.lin_out(out)
 
         return out, n_ent_attn, c_ent_attn
 
-    def forward(self, cnt_input, cmt_input, ent_input):
+    def forward(self, cnt_input, cmt_input, ent_input, cap_input):
         # (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk)
         content_vec,_ = self.news(*cnt_input, *ent_input)
         comment_vec,_ = self.comment(*cmt_input, *ent_input) if torch.count_nonzero(cmt_input[-1]) > 0 else (torch.ones(cmt_input[0].size(0), 200), torch.tensor([]))
+        caption_vec = F.pad(torch.tensor(cap_input[0]), (0, 200 - cap_input[0].size(1), 0, 0))
 
-        out = torch.cat((content_vec, comment_vec), dim=1)
+        out = torch.cat((content_vec, comment_vec, caption_vec), dim=1)
         out = self.lin_cat(out)
         out = self.relu(out)
         out = self.lin_out(out)
@@ -245,16 +245,17 @@ class KAHAN(nn.Module):
 
 # model specific train function
 def train(input_tensor, target_tensor, model, optimizer, criterion, device):
-    (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk) = input_tensor
+    (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), (cap, lcap) = input_tensor
     cnt = cnt.to(device)
     cmt = cmt.to(device)
     ent = ent.to(device)
+    cap = cap.to(device)
     target_tensor = target_tensor.to(device)
 
     model.train()
     optimizer.zero_grad()
     
-    output = model((cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk))
+    output = model((cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), (cap, lcap))
 
     loss = criterion(output, target_tensor)
 
@@ -279,13 +280,14 @@ def evaluate(model, testset, device, batch_size=32):
     model.eval()
     with torch.no_grad():    
         for input_tensor, target_tensor in testloader:
-            (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk) = input_tensor
+            (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), (cap, lcap) = input_tensor
             cnt = cnt.to(device)
             cmt = cmt.to(device)
             ent = ent.to(device)
+            cap = cap.to(device)
             target_tensor = target_tensor.to(device)
 
-            output = model((cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk))
+            output = model((cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), (cap, lcap))
 
             loss = criterion(output, target_tensor)
             loss_total += loss.item()*len(input_tensor)

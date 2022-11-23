@@ -28,11 +28,12 @@ def get_entity_claim(data_dir, data_source):
 
 # get news content and comments from preprocessed tcv file
 def get_data(data_dir, data_source):
-    df = pd.read_csv("{}/{}_no_ignore_en.tsv".format(data_dir, data_source), sep='\t') 
+    df = pd.read_csv("{}/{}_no_ignore_en_cap.tsv".format(data_dir, data_source), sep='\t') 
     df = df.fillna('')
     contents = []
     comments = []
     entities = []
+    captions = []
     labels = []
 
     for idx in range(df.id.shape[0]):
@@ -61,15 +62,21 @@ def get_data(data_dir, data_source):
         ens = [en for ens in df.entities[idx].split('||') for en in ens.split(' ') if en != '']
         entities.append(ens)
 
+        # load captions
+        caption = df.caption[idx]
+        caption = caption.encode('ascii', 'ignore').decode('utf-8')
+        captions.append(caption)
+
         # load labels
         labels.append(df.label[idx])
 
     contents = np.asarray(contents)
     comments = np.asarray(comments)
     entities = np.asarray(entities)
+    captions = np.asarray(captions)
     labels = np.asarray(labels)
 
-    return contents, comments, entities, labels
+    return contents, comments, entities, captions, labels
 
 
 class KaDataset(data.Dataset):
@@ -86,10 +93,11 @@ class KaDataset(data.Dataset):
             max_cmt: max number of comments in a subevent
             intervals: range of time index, for building time-based subevents
     """
-    def __init__(self, contents, comments, entities, labels, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec, sb_type, max_len=60, max_sent=30, max_ent=100, M=5, max_cmt=50, intervals=100):
+    def __init__(self, contents, comments, entities, captions, labels, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec, sb_type, max_len=60, max_sent=30, max_ent=100, M=5, max_cmt=50, intervals=100):
         self.contents = contents
         self.comments = comments
         self.entities = entities
+        self.captions = captions
         self.labels = labels
 
         self.sb_type = sb_type
@@ -316,18 +324,39 @@ class KaDataset(data.Dataset):
 
         return word_vec, le, lsb, lc
 
+    # return processed captions in sentence level, (max_sentence, max_length)
+    def _news_caption_preprocess(self, caption):
+        # convert words to vectors
+        caption = re.sub('[^a-zA-Z]', ' ', caption)
+        caption = word_tokenize(caption.lower())
+        caption = [w for w in caption if w not in stopwords.words('english')]
+
+        # convert word into index of word embedding
+        word_vec = [self.word2vec_cnt.key_to_index[w] if w in self.word2vec_cnt.key_to_index else self.word2vec_cnt.key_to_index['_unk_'] for w in caption]
+
+        # calculate length of caption
+        lcap = len(word_vec) if len(word_vec)<self.max_len else self.max_len
+
+        # token padding
+        word_vec = word_vec[:self.max_len]
+        word_vec = np.pad(word_vec, ((0, self.max_len-len(word_vec)))).astype(int)
+
+        return word_vec, lcap
+
     # return data ((contents, comments), label)
     def __getitem__(self, index):
         content = self.contents[index]
         comment = self.comments[index]
         entity = self.entities[index]
+        caption = self.captions[index]
         label = self.labels[index]
 
         content_vec, ln, ls = self._news_content_preprocess(content)
         comment_vec, le, lsb, lc = self._build_subevents(comment)
         ent_vec, lk = self._knowledge_preprocesss(entity)
+        cap_vec, lcap = self._news_caption_preprocess(caption)
         
-        return ((torch.tensor(content_vec), torch.tensor(ln), torch.tensor(ls)), (torch.tensor(comment_vec), torch.tensor(le), torch.tensor(lsb), torch.tensor(lc)), (torch.tensor(ent_vec), torch.tensor(lk))), torch.tensor(label)
+        return ((torch.tensor(content_vec), torch.tensor(ln), torch.tensor(ls)), (torch.tensor(comment_vec), torch.tensor(le), torch.tensor(lsb), torch.tensor(lc)), (torch.tensor(ent_vec), torch.tensor(lk)), (torch.tensor(cap_vec), torch.tensor(lcap))), torch.tensor(label)
 
 
 if __name__ == '__main__':

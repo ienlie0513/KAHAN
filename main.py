@@ -53,7 +53,7 @@ if __name__ == '__main__':
     log, img_dir, ckpt_dir = init_archive(config)
 
     # get data and split into 5-fold
-    contents, comments, entities, labels = get_data(config['data_dir'], config['data_source'])
+    contents, comments, entities, captions, labels = get_data(config['data_dir'], config['data_source'])
     claim_dict = get_entity_claim(config['data_dir'], config['data_source'])
     skf = StratifiedKFold(n_splits=5)
     for fold, (train_idx, test_idx) in enumerate(skf.split(np.zeros(len(labels)), labels)):
@@ -62,11 +62,12 @@ if __name__ == '__main__':
         x_train, x_val = contents[train_idx], contents[test_idx]
         c_train, c_val = comments[train_idx], comments[test_idx]
         e_train, e_val = entities[train_idx], entities[test_idx]
+        cap_train, cap_val = captions[train_idx], captions[test_idx]
         y_train, y_val = labels[train_idx], labels[test_idx]
 
-        trainset = KaDataset(x_train, c_train, e_train, y_train, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec,
+        trainset = KaDataset(x_train, c_train, e_train, cap_train, y_train, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec,
             sb_type=config['sb_type'], max_len=config['max_len'], max_sent=config['max_sent'], max_ent=config['max_ent'], M=config['M'], max_cmt=config['max_cmt'])
-        validset = KaDataset(x_val, c_val, e_val, y_val, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec,
+        validset = KaDataset(x_val, c_val, e_val, cap_val, y_val, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec,
             sb_type=config['sb_type'], max_len=config['max_len'], max_sent=config['max_sent'], max_ent=config['max_ent'], M=config['M'], max_cmt=config['max_cmt'])
 
         # training
