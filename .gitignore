@@ -2,7 +2,7 @@
 word2vec
 .vscode
 .DS_Store
-data
+#data
 fakenewsnet_dataset
 REL
 apicache-py3
