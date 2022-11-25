@@ -229,13 +229,13 @@ class KAHAN(nn.Module):
 
         return out, n_ent_attn, c_ent_attn
 
-    def forward(self, cnt_input, cmt_input, ent_input, cap_input):
+    def forward(self, cnt_input, cmt_input, ent_input, img_input):
         # (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk)
         content_vec,_ = self.news(*cnt_input, *ent_input)
         comment_vec,_ = self.comment(*cmt_input, *ent_input) if torch.count_nonzero(cmt_input[-1]) > 0 else (torch.ones(cmt_input[0].size(0), 200), torch.tensor([]))
-        caption_vec = F.pad(torch.tensor(cap_input[0]), (0, 200 - cap_input[0].size(1), 0, 0))
+        image_vec = img_input
 
-        out = torch.cat((content_vec, comment_vec, caption_vec), dim=1)
+        out = torch.cat((content_vec, comment_vec, image_vec), dim=1)
         out = self.lin_cat(out)
         out = self.relu(out)
         out = self.lin_out(out)
@@ -245,17 +245,17 @@ class KAHAN(nn.Module):
 
 # model specific train function
 def train(input_tensor, target_tensor, model, optimizer, criterion, device):
-    (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), (cap, lcap) = input_tensor
+    (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), img = input_tensor
     cnt = cnt.to(device)
     cmt = cmt.to(device)
     ent = ent.to(device)
-    cap = cap.to(device)
+    img = img.to(device)
     target_tensor = target_tensor.to(device)
 
     model.train()
     optimizer.zero_grad()
     
-    output = model((cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), (cap, lcap))
+    output = model((cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), img)
 
     loss = criterion(output, target_tensor)
 
@@ -280,14 +280,14 @@ def evaluate(model, testset, device, batch_size=32):
     model.eval()
     with torch.no_grad():    
         for input_tensor, target_tensor in testloader:
-            (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), (cap, lcap) = input_tensor
+            (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), img = input_tensor
             cnt = cnt.to(device)
             cmt = cmt.to(device)
             ent = ent.to(device)
-            cap = cap.to(device)
+            img = img.to(device)
             target_tensor = target_tensor.to(device)
 
-            output = model((cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), (cap, lcap))
+            output = model((cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), img)
 
             loss = criterion(output, target_tensor)
             loss_total += loss.item()*len(input_tensor)
