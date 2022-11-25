@@ -1,5 +1,6 @@
 import re
 import string 
+import os
 
 import numpy as np
 import pandas as pd
@@ -15,8 +16,6 @@ from gensim.models.keyedvectors import KeyedVectors
 from wikipedia2vec import Wikipedia2Vec
 
 from PIL import Image
-from io import BytesIO
-import requests
 
 from torchvision.models import vgg19, VGG19_Weights
 
@@ -34,7 +33,7 @@ def get_entity_claim(data_dir, data_source):
 
 # get news content and comments from preprocessed tcv file
 def get_data(data_dir, data_source):
-    df = pd.read_csv("{}/{}_no_ignore_en.tsv".format(data_dir, data_source), sep='\t') 
+    df = pd.read_csv("{}/{}_no_ignore_en_cap.tsv".format(data_dir, data_source), sep='\t') 
     df = df.fillna('')
     contents = []
     comments = []
@@ -69,9 +68,15 @@ def get_data(data_dir, data_source):
         entities.append(ens)
 
         # load images
-        response = requests.get(df.image[idx])
-        img = Image.open(BytesIO(response.content))
-        images.append(img)
+        if df.label[idx] == 1:
+            path = data_dir + '/news_images/' + '/real/' + data_source + '_' + str(df.id[idx]) + '.jpg'
+        else:
+            path = data_dir + '/news_images/' + '/fake/' + data_source + '_' + str(df.id[idx]) + '.jpg'
+
+        if os.path.exists(path):
+            images.append(Image.open(path))
+        else:
+            images.append(None)
 
         # load labels
         labels.append(df.label[idx])
@@ -91,7 +96,6 @@ class KaDataset(data.Dataset):
         it tokenize the news content and comments, convert each token into word index, padding into max length,
         get entity and claim embed, finally return the tensor of word index and label 
         variables
-            data_type: 0 news only, 1 comments only, 2 both
             sb_type: 0 time-based, 1 count-based subevent build
             max_len: max number of tokens in a sentence
             max_sen: max number of sentences in a document 
@@ -337,7 +341,7 @@ class KaDataset(data.Dataset):
         weigths = VGG19_Weights.DEFAULT
         preprocess = weigths.transforms()
         # apply the transform to the image
-        image_transformed = preprocess(image)
+        image_transformed = preprocess(image) if image else None
         # initialize the model
         model = vgg19(weights=weigths)
         # select the layer to extract features from
@@ -346,15 +350,18 @@ class KaDataset(data.Dataset):
         model.eval()
         # create empty embedding
         embedding = torch.zeros(25088)
-        # create a function that will copy the output of a layer
-        def copy_data(m, i, o):
-            embedding.copy_(o.flatten())
-        # attach that function to our selected layer
-        h = layer.register_forward_hook(copy_data)
-        # run the model on our transformed image
-        model(image_transformed.unsqueeze(0))
-        # detach our copy function from the layer
-        h.remove()
+        if image_transformed is not None:
+            # create a function that will copy the output of a layer
+            def copy_data(m, i, o):
+                embedding.copy_(o.flatten())
+            # attach that function to our selected layer
+            h = layer.register_forward_hook(copy_data)
+            # run the model on our transformed image
+            model(image_transformed.unsqueeze(0))
+            # detach our copy function from the layer
+            h.remove()
+        # performing max pooling on the embedding to reduce the size
+        embedding = F.max_pool1d(embedding.unsqueeze(0), 125).squeeze(0)
         # return the feature vector
         return embedding
 

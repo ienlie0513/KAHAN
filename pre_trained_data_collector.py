@@ -20,3 +20,8 @@ wiki_data_url = api.load("glove-wiki-gigaword-100", return_path=True)
 # unzip the gz file
 os.system('gunzip ' + wiki_data_url)
 os.rename(wiki_data_url.split('.')[0], dir_path + '/glove-wiki-gigaword-100')
+
+# nltk
+import nltk
+nltk.download('punkt')
+nltk.download('stopwords')

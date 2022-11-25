@@ -32,7 +32,7 @@ def get_entity(site, entity):
     page = pywikibot.Page(site, entity)
     try: 
         item = pywikibot.ItemPage.fromPage(page)
-    except pywikibot.page.NoPageError:
+    except pywikibot.exceptions.NoPageError:
         logging.error("NoPageError: entity {} not found".format(entity))
         return None
     except pywikibot.exceptions.MaxlagTimeoutError:

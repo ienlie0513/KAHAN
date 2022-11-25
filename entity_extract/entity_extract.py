@@ -87,6 +87,7 @@ def get_data(df):
 
     for idx in range(df.id.shape[0]):
         text = df.text[idx]
+        print(type(df.id[idx]))
         text = text.encode('ascii', 'ignore').decode('utf-8')
         contents.append(sent_tokenize(text))
 
@@ -102,11 +103,14 @@ if __name__ == "__main__":
     parser.add_argument("--batch", type=int, default=64)
     args = parser.parse_args()
     
-    df = pd.read_csv("./data/{}_no_ignore_s.tsv".format(args.platform), sep='\t') 
+    df = pd.read_csv("./data/{}_no_ignore_s.tsv".format(args.platform), sep='\t')
+    df['id'] = df['id'].astype(str)
+    df = df.fillna('')
     contents, ids = get_data(df)
 
     input_list = input_processing(contents, ids)
     batch_list = batch_input(input_list, args.batch)
+
     
     config = {
         "mode": "eval",

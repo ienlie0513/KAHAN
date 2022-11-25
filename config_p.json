@@ -12,13 +12,13 @@
     "M": 5,
     "max_cmt": 50, 
     "print_every": 10,
-    "data_dir": "./data/",
+    "data_dir": "./data",
     "data_source": "politifact",
     "sb_type": 0,
-    "word2vec_cnt": "../word2vec/glove-wiki-gigaword-100",
-    "word2vec_cmt": "../word2vec/glove-twitter-100",
+    "word2vec_cnt": "./word2vec/glove-wiki-gigaword-100",
+    "word2vec_cmt": "./word2vec/glove-twitter-100",
     "word2vec_dim": 100,
-    "wiki2vec": "../word2vec/enwiki_20180420_100d.pkl",
+    "wiki2vec": "./word2vec/enwiki_20180420_100d.pkl",
     "wiki2vec_dim": 100,
-    "device": "cuda"
+    "device": "cpu"
 }
