@@ -17,7 +17,7 @@ from wikipedia2vec import Wikipedia2Vec
 
 from PIL import Image
 
-from torchvision.models import vgg19, VGG19_Weights
+from torchvision.models import vgg19, resnet50, VGG19_Weights, ResNet50_Weights
 
 # get entity claim from preprocessed tcv file
 def get_entity_claim(data_dir, data_source):
@@ -104,7 +104,7 @@ class KaDataset(data.Dataset):
             max_cmt: max number of comments in a subevent
             intervals: range of time index, for building time-based subevents
     """
-    def __init__(self, contents, comments, entities, images, labels, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec, sb_type, max_len=60, max_sent=30, max_ent=100, M=5, max_cmt=50, intervals=100):
+    def __init__(self, contents, comments, entities, images, labels, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec, sb_type, max_len=60, max_sent=30, max_ent=100, M=5, max_cmt=50, intervals=100, model='vgg19', downsample_method='fc'):
         self.contents = contents
         self.comments = comments
         self.entities = entities
@@ -124,6 +124,43 @@ class KaDataset(data.Dataset):
         self.word2vec_cnt = word2vec_cnt
         self.word2vec_cmt = word2vec_cmt
         self.wiki2vec = wiki2vec
+
+        # initialize the weight transform
+        self.preprocess = VGG19_Weights.DEFAULT.transforms() if model == 'vgg19' else ResNet50_Weights.DEFAULT.transforms()
+        # initialize the model
+        self.model = vgg19(weights=VGG19_Weights.DEFAULT) if model == 'vgg19' else resnet50(weights=ResNet50_Weights.DEFAULT)
+        # select the layer to extract features from
+        self.layer = self.model._modules.get('avgpool') if model == 'vgg19' else self.model.layer4 
+        # set model to evaluation mode
+        self.model.eval()
+    
+        self.embedding_size = 25088 if model == 'vgg19' else 100352
+        self.downsample = downsample_method
+        self.pooling_size = 125 if model == 'vgg19' else 500
+        self.downsample_method = downsample_method
+
+        class DeepFC(nn.Module):
+            def __init__(self, input_size, hidden_size, output_size):
+                super(DeepFC, self).__init__()
+                
+                self.fc1 = nn.Linear(input_size, hidden_size)
+                self.fc2 = nn.Linear(hidden_size, hidden_size)
+                self.fc3 = nn.Linear(hidden_size, output_size)
+                
+                # activation function
+                self.relu = nn.ReLU()
+                
+            def forward(self, x):
+                x = self.fc1(x)
+                x = self.relu(x)
+                x = self.fc2(x)
+                x = self.relu(x)
+                x = self.fc3(x)
+                return x
+
+        self.fc = nn.Linear(self.embedding_size, 200)
+        self.deepfc = DeepFC(self.embedding_size, 2048, 200)
+
         
 
     def __len__(self):
@@ -335,35 +372,42 @@ class KaDataset(data.Dataset):
 
         return word_vec, le, lsb, lc
 
+    def _embed_downsample(self, embedding, method):
+        if method == 'max-pooling':
+            # performing max pooling on the embedding to reduce the size
+            downsampled_embedding = F.max_pool1d(embedding.unsqueeze(0), self.pooling_size).squeeze(0)    
+        elif method == 'mean-pooling':
+            # performing mean pooling on the embedding to reduce the size
+            downsampled_embedding = F.avg_pool1d(embedding.unsqueeze(0), self.pooling_size).squeeze(0)
+        elif method == 'fc':
+            # performing a fully connected layer on the embedding to reduce the size
+            downsampled_embedding = self.fc(embedding)
+        elif method == 'deepfc':
+            # performning a deep fully connected layer on the embedding to reduce the size
+            downsampled_embedding = self.deepfc(embedding)
+
+        return downsampled_embedding
+    
     # create VGG19 embedding of the PIL image object and return
-    def _image_preprocess(self, image):
-        # initialize the weight transform
-        weigths = VGG19_Weights.DEFAULT
-        preprocess = weigths.transforms()
-        # apply the transform to the image
-        image_transformed = preprocess(image) if image else None
-        # initialize the model
-        model = vgg19(weights=weigths)
-        # select the layer to extract features from
-        layer = model._modules.get('avgpool')
-        # set model to evaluation mode
-        model.eval()
-        # create empty embedding
-        embedding = torch.zeros(25088)
-        if image_transformed is not None:
-            # create a function that will copy the output of a layer
-            def copy_data(m, i, o):
-                embedding.copy_(o.flatten())
-            # attach that function to our selected layer
-            h = layer.register_forward_hook(copy_data)
-            # run the model on our transformed image
-            model(image_transformed.unsqueeze(0))
-            # detach our copy function from the layer
-            h.remove()
-        # performing max pooling on the embedding to reduce the size
-        embedding = F.max_pool1d(embedding.unsqueeze(0), 125).squeeze(0)
-        # return the feature vector
-        return embedding
+    def _get_embedding(self, image):
+            # apply the transform to the image
+            image_transformed = self.preprocess(image) if image else None
+            # create empty embedding
+            embedding = torch.zeros(self.embedding_size)
+            if image_transformed is not None:
+                # create a function that will copy the output of a layer
+                def copy_data(m, i, o):
+                    embedding.copy_(o.flatten())
+                # attach the copy function to the chosen layer
+                h = self.layer.register_forward_hook(copy_data)
+                # run the model on the transformed image
+                self.model(image_transformed.unsqueeze(0))
+                # detach the copy function from the layer
+                h.remove()
+            embedding = self._embed_downsample(embedding, self.downsample)
+            # return the feature vector
+            return embedding
+            
 
     # return data ((contents, comments), label)
     def __getitem__(self, index):
@@ -376,9 +420,9 @@ class KaDataset(data.Dataset):
         content_vec, ln, ls = self._news_content_preprocess(content)
         comment_vec, le, lsb, lc = self._build_subevents(comment)
         ent_vec, lk = self._knowledge_preprocesss(entity)
-        img_vec = self._image_preprocess(image)
+        img_vec = self._get_embedding(image)
         
-        return ((torch.tensor(content_vec), torch.tensor(ln), torch.tensor(ls)), (torch.tensor(comment_vec), torch.tensor(le), torch.tensor(lsb), torch.tensor(lc)), (torch.tensor(ent_vec), torch.tensor(lk)), img_vec), torch.tensor(label)
+        return ((torch.tensor(content_vec), torch.tensor(ln), torch.tensor(ls)), (torch.tensor(np.array(comment_vec)), torch.tensor(le), torch.tensor(lsb), torch.tensor(lc)), (torch.tensor(ent_vec), torch.tensor(lk)), img_vec), torch.tensor(label)
 
 
 if __name__ == '__main__':
