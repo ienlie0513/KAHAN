@@ -3,6 +3,40 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils import data
 
+class MaxPooling():
+    def __init__(self, kernel_size):
+        self.kernel_size = kernel_size
+
+    def __call__(self, x):
+        return F.max_pool1d(x.unsqueeze(0), self.kernel_size).squeeze(0)
+
+class AvgPooling():
+    def __init__(self, kernel_size):
+        self.kernel_size = kernel_size
+
+    def __call__(self, x):
+        return F.avg_pool1d(x.unsqueeze(0), self.kernel_size).squeeze(0)
+
+class DeepFC(nn.Module):
+    def __init__(self, input_size, hidden_sizes, output_size, dropout=0.3):
+        super(DeepFC, self).__init__()
+
+        self.deepfc = nn.Sequential()
+        self.deepfc.add_module('input', nn.Linear(input_size, hidden_sizes[0]))
+        self.deepfc.add_module('batchnorm_0', nn.BatchNorm1d(hidden_sizes[0]))
+        self.deepfc.add_module('relu_0', nn.ReLU())
+        self.deepfc.add_module('dropout_0', nn.Dropout(dropout))
+        for i in range(len(hidden_sizes) - 1):
+            self.deepfc.add_module('hidden_{}'.format(i), nn.Linear(hidden_sizes[i], hidden_sizes[i+1]))
+            self.deepfc.add_module('batchnorm_{}'.format(i+1), nn.BatchNorm1d(hidden_sizes[i+1]))
+            self.deepfc.add_module('relu_{}'.format(i+1), nn.ReLU())
+            self.deepfc.add_module('dropout_{}'.format(i+1), nn.Dropout(dropout))
+        self.deepfc.add_module('output', nn.Linear(hidden_sizes[-1], output_size))
+
+    def forward(self, x):
+        x = self.deepfc(x)
+        return x
+
 class EmbedAttention(nn.Module):
 
     def __init__(self, att_size):
@@ -10,8 +44,11 @@ class EmbedAttention(nn.Module):
         self.attn = nn.Linear(att_size, 1)
 
     def forward(self, input, len_s, total_length):
+        #print('input: {} len_s: {} total_length: {}'.format(input.size(), len_s, total_length))
         att = self.attn(input).squeeze(-1)
+        #print('att: {}'.format(att.size()))
         out = self._masked_softmax(att, len_s, total_length).unsqueeze(-1)
+        #print('out: {}'.format(out.size()))
 
         return out
 
@@ -36,14 +73,19 @@ class AttentionalBiRNN(nn.Module):
         self.emb_att = EmbedAttention(hid_size*2)
     
     def forward(self, packed_batch, total_length):
-
+        #print('packed_batch: {} total_length: {}'.format(packed_batch.data.size(), total_length))
         rnn_output, _ = self.rnn(packed_batch)
+        #print('rnn_output: {}'.format(rnn_output.data.size()))
         enc_output, len_s = torch.nn.utils.rnn.pad_packed_sequence(rnn_output, batch_first=True, total_length=total_length)
+        #print('enc_output: {} len_s: {}'.format(enc_output.data.size(), len_s))
 
         enc_output = self.dropout(enc_output)
+        #print('enc_output: {}'.format(enc_output.size()))
         emb_h = torch.tanh(self.lin(enc_output))
+        #print('emb_h: {}'.format(emb_h.size()))
 
         attended = self.emb_att(emb_h, len_s, total_length) * enc_output
+        #print('attended: {}'.format(attended.size()))
         
         return attended.sum(1)
 
@@ -86,16 +128,22 @@ class NHAN(nn.Module):
 
     def forward(self, input, ln, ls, ent_embs, lk):
         # cat all sentences in the batch
+        #print('input (0): {} '.format(input.size()))
         input, ls = self._reorder_input(input, ln, ls)
+        #print('input (1): {} '.format(input.size()))
 
         # (# of sentences in the batch, max_length, emb_size)
-        emb_w = self.embedding(input)
+        emb_w = self.embedding(input) 
+        #print('emb_w: {} '.format(emb_w.size()))
         
         packed_sents = torch.nn.utils.rnn.pack_padded_sequence(emb_w, ls, batch_first=True, enforce_sorted=False)
+        #print('packed_sents: {} '.format(packed_sents.data.size()))
         sent_embs = self.word(packed_sents, emb_w.size(1))
+        #print('sent_embs (0): {} '.format(sent_embs.size()))
 
         # recover sentence embs to batch
         sent_embs = self._reorder_word_output(sent_embs, ln)
+        #print('sent_embs (1): {} '.format(sent_embs.size()))
 
         ## mask
         idxes = torch.arange(0, ent_embs.size(1), out=ent_embs.data.new(ent_embs.size(1))).unsqueeze(1)
@@ -110,9 +158,13 @@ class NHAN(nn.Module):
 
         # cat weighted ent_embed to sent_embs
         sent_embs = torch.cat((sent_embs, ent_embs.transpose(0, 1)), dim=2) # (batch, max_sent, 3*hidden)
+        #print('sent_embs: {} '.format(sent_embs.size()))
 
+        #print('sent_embs: {} num sentences (ln) {} '.format(sent_embs.size(), ln))
         packed_news = torch.nn.utils.rnn.pack_padded_sequence(sent_embs, ln, batch_first=True, enforce_sorted=False)
+        #print('packed_news: {} '.format(packed_news.data.size()))
         content_vec = self.sent(packed_news, sent_embs.size(1))
+        #print('content_vec: {} '.format(content_vec.size()))
 
         return content_vec, ent_attn # (batch, hid_size*2)
 
@@ -204,15 +256,37 @@ class CHAN(nn.Module):
         comment_vec = self.subevent(packed_news, sb_embs.size(1))
 
         return comment_vec, ent_attn # (batch, hid_size*2)
+    
+# image hierachical attention network
+class IHAN(nn.Module):
+    def __init__(self):
+        super(IHAN, self).__init__()
+    
+class Downsample(nn.Module):
+    def __init__(self, out_size, method, embed_size, kernel_size, hid_layers):
+        super(Downsample, self).__init__()
 
+        if method == 'maxpooling':
+            self.model = MaxPooling(kernel_size)
+        elif method == 'avgpooling':
+            self.model = AvgPooling(kernel_size)
+        elif method == 'deepfc':
+            self.model = DeepFC(embed_size, hid_layers, out_size)
+        elif method == 'fc':
+            self.model = nn.Linear(embed_size, out_size)
+        
+    def forward(self, embed):
+        return self.model(embed)
 
 class KAHAN(nn.Module):
 
-    def __init__(self, num_class, word2vec_cnt, word2vec_cmt, emb_size=100, hid_size=100, max_sent=50, dropout=0.3):
+    def __init__(self, num_class, word2vec_cnt, word2vec_cmt, downsample_params, fusion_method, emb_size=100, hid_size=100, max_sent=50, dropout=0.3):
         super(KAHAN, self).__init__()
 
         self.news = NHAN(word2vec_cnt, emb_size, hid_size, max_sent, dropout)
         self.comment = CHAN(word2vec_cmt, emb_size, hid_size, dropout)
+        self.image = Downsample(hid_size*2, **downsample_params)
+        self.fusion_method = fusion_method
         self.lin_cat = nn.Linear(hid_size*6, hid_size*2)
         self.lin_out = nn.Linear(hid_size*2, num_class)
         self.relu = nn.ReLU()
@@ -233,15 +307,21 @@ class KAHAN(nn.Module):
         # (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk)
         content_vec,_ = self.news(*cnt_input, *ent_input)
         comment_vec,_ = self.comment(*cmt_input, *ent_input) if torch.count_nonzero(cmt_input[-1]) > 0 else (torch.ones(cmt_input[0].size(0), 200), torch.tensor([]))
-        image_vec = img_input
+        image_vec = self.image(img_input)
 
-        out = torch.cat((content_vec, comment_vec, image_vec), dim=1)
-        out = self.lin_cat(out)
-        out = self.relu(out)
+        out = None
+        if self.fusion_method == 'cat':
+            out = torch.cat((content_vec, comment_vec, image_vec), dim=1)
+            out = self.lin_cat(out)
+            out = self.relu(out)
+        elif self.fusion_method == 'elem_mult':
+            out = content_vec * comment_vec * image_vec
+        elif self.fusion_method == 'avg':
+            out = (content_vec + comment_vec + image_vec) / 3
+
         out = self.lin_out(out)
 
-        return out 
-
+        return out
 
 # model specific train function
 def train(input_tensor, target_tensor, model, optimizer, criterion, device):

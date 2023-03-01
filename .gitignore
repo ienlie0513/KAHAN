@@ -2,11 +2,27 @@
 word2vec
 .vscode
 .DS_Store
-#data
+
+# Data
 fakenewsnet_dataset
+fakenewsnet_dataset_v2
 REL
 apicache-py3
-model_ckpts
+
+model_ckpts*
+caption_generation
+
+data/images_with_web_archive_url
+data/images_without_web_archive_url
+data/politifact
+
+data/politifact_v2/news_images_old
+
+*.pt
+
+# Irrelevant
+IHAN.py
+test.py
 
 # Files
 log.txt

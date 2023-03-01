@@ -128,3 +128,5 @@ def calculate_metrics(acc, targets, predicts, log=None):
 
     print ("acc: {:.4f}, precision: {:.4f}, recall: {:.4f}, micro f1: {:.4f}, macro f1: {:.4f}".format(acc, precision, recall, microf1, macrof1))
     log.write("acc: {:.4f}, precision: {:.4f}, recall: {:.4f}, micro f1: {:.4f}, macro f1: {:.4f}\n".format(acc, precision, recall, microf1, macrof1))
+
+    return acc, precision, recall, microf1, macrof1
