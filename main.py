@@ -15,7 +15,7 @@ from wikipedia2vec import Wikipedia2Vec
 from util.train_util import trainIters
 from util.util import show_result, plot_confusion_matrix, calculate_metrics
 from util.datahelper import KaDataset, get_preprocessed_data
-from KAHAN import KAHAN, train, evaluate
+from IKAHAN import IKAHAN, train, evaluate
 
 class Timer:
     def __init__(self):
@@ -71,6 +71,7 @@ if __name__ == '__main__':
     parser.add_argument('--exclude_with_no_image', action='store_true')
     parser.add_argument('--only_newscontent', action='store_true')
     parser.add_argument('--num_seeds', type=int, default=4)
+    parser.add_argument('--use_han', action='store_true')
     args = parser.parse_args()
 
     downsample_params = {
@@ -83,7 +84,7 @@ if __name__ == '__main__':
     log, img_dir, ckpt_dir = init_archive(config, args.cnn, args.downsample, args.fusion, args.hid, args.exclude_with_no_image, args.only_newscontent)
 
     # load data
-    contents, comments, entities, images, labels = get_preprocessed_data(config['data_dir'], config['data_source'], args.cnn, args.exclude_with_no_image, args.only_newscontent)
+    contents, comments, entities, images, labels = get_preprocessed_data(config['data_dir'], config['data_source'], args.cnn, args.exclude_with_no_image, args.only_newscontent, args.use_han)
 
     # load word2vec, wiki2vec model and add unk vector
     word2vec_cnt = KeyedVectors.load_word2vec_format(config['word2vec_cnt'])
@@ -107,7 +108,7 @@ if __name__ == '__main__':
         # cross validation
         scores = []
 
-        skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=seed)
+        skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=seed)
         for fold, (train_idx, test_idx) in enumerate(skf.split(np.zeros(len(labels)), labels)):
             print ('Fold %d start at %s' % (fold, datetime.now().strftime('%Y_%m_%d %H:%M:%S')))
             log.write('Fold %d start at %s\n' % (fold, datetime.now().strftime('%Y_%m_%d %H:%M:%S')))
@@ -122,14 +123,14 @@ if __name__ == '__main__':
             validset = KaDataset(x_val, c_val, e_val, i_val, y_val)
 
             # training
-            model = KAHAN(config['num_class'], word2vec_cnt, word2vec_cmt, downsample_params, args.fusion, config['word2vec_dim'], config['hid_size'], max_sent=config['max_sent'], dropout=config['dropout'])
+            model = IKAHAN(config['num_class'], word2vec_cnt, word2vec_cmt, downsample_params, args.fusion, args.use_han, config['word2vec_dim'], config['hid_size'], max_sent=config['max_sent'], dropout=config['dropout'])
             train_accs, test_accs, train_losses, test_losses, model_name = trainIters(model, trainset, validset, train, evaluate,
                 epochs=config['ep'], learning_rate=config['lr'], batch_size=config['batch_size'], weight_decay=config['weight_decay'],
                 save_info=(fold, ckpt_dir), print_every=config['print_every'], device=config['device'], log=log)
             show_result(train_accs, test_accs, train_losses, test_losses, save=(fold, img_dir))
 
             # evaluate
-            model = KAHAN(config['num_class'], word2vec_cnt, word2vec_cmt, downsample_params, args.fusion, config['word2vec_dim'], config['hid_size'], max_sent=config['max_sent'], dropout=config['dropout']).to(config['device'])
+            model = IKAHAN(config['num_class'], word2vec_cnt, word2vec_cmt, downsample_params, args.fusion, args.use_han, config['word2vec_dim'], config['hid_size'], max_sent=config['max_sent'], dropout=config['dropout']).to(config['device'])
             model.load_state_dict(torch.load(model_name))
             _, acc, predicts, targets = evaluate(model, validset, device=config['device'])
             acc, precision, recall, microf1, macrof1 = calculate_metrics(acc, targets, predicts, log=log)

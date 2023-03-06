@@ -88,6 +88,44 @@ class AttentionalBiRNN(nn.Module):
         #print('attended: {}'.format(attended.size()))
         
         return attended.sum(1)
+    
+
+# image hierachical attention network
+class IHAN(nn.Module):
+    def __init__(self, emb_size=100, hid_size=100, dropout=0.3):
+        super(IHAN, self).__init__()
+
+        self.fine = AttentionalBiRNN(emb_size, hid_size, dropout=dropout)
+        self.coarse = AttentionalBiRNN(hid_size*2, hid_size, dropout=dropout)
+
+    def _reorder_input(self, input, lf, lc):
+        # (batch, coarse, fine, emb_size) to (# of coarse in the batch, fine, emb_size)
+        reordered_input = input.reshape(-1, input.shape[2], input.shape[3])
+        # convert to torch tensor
+        reordered_input = torch.tensor(reordered_input)
+        # assume no padding added (constant length)
+        len_f = [input.shape[2] for _ in input.shape[0]]
+        len_c = [input.shape[1] for _ in input.shape[0]]
+
+        return reordered_input, len_f, len_c
+
+    def _reorder_fine_output(self, output, lc):
+        # (# of coarse in the batch, 2*hidden) to (batch, max_coarse, 2*hidden)
+        reordered_output = output.reshape(-1, lc, output.shape[1])
+
+        return reordered_output
+
+    def forward(self, input, lf, lc):
+        input, len_f, len_c = self._reorder_input(input, lf, lc)
+        # fine graied level
+        packed_fined = torch.nn.utils.rnn.pack_padded_sequence(input, len_f, batch_first=True, enforce_sorted=False)
+        fine_embs = self.fine(packed_fined, lf)
+        # coarse grained level
+        coarse_embs = self._reorder_fine_output(fine_embs, lc)
+        packed_coarse = torch.nn.utils.rnn.pack_padded_sequence(coarse_embs, len_c, batch_first=True, enforce_sorted=False)
+        image_vec = self.coarse(packed_coarse, lc)
+
+        return image_vec
 
 
 # news hierarchical attention network
@@ -256,11 +294,7 @@ class CHAN(nn.Module):
         comment_vec = self.subevent(packed_news, sb_embs.size(1))
 
         return comment_vec, ent_attn # (batch, hid_size*2)
-    
-# image hierachical attention network
-class IHAN(nn.Module):
-    def __init__(self):
-        super(IHAN, self).__init__()
+
     
 class Downsample(nn.Module):
     def __init__(self, out_size, method, embed_size, kernel_size, hid_layers):
@@ -278,15 +312,18 @@ class Downsample(nn.Module):
     def forward(self, embed):
         return self.model(embed)
 
-class KAHAN(nn.Module):
+class IKAHAN(nn.Module):
 
-    def __init__(self, num_class, word2vec_cnt, word2vec_cmt, downsample_params, fusion_method, emb_size=100, hid_size=100, max_sent=50, dropout=0.3):
-        super(KAHAN, self).__init__()
+    def __init__(self, num_class, word2vec_cnt, word2vec_cmt, downsample_params, fusion_method, use_han=False, emb_size=100, hid_size=100, max_sent=50, dropout=0.3):
+        super(IKAHAN, self).__init__()
 
         self.news = NHAN(word2vec_cnt, emb_size, hid_size, max_sent, dropout)
         self.comment = CHAN(word2vec_cmt, emb_size, hid_size, dropout)
-        self.image = Downsample(hid_size*2, **downsample_params)
+        self.image = IHAN(emb_size, hid_size, dropout) if use_han else Downsample(hid_size*2, **downsample_params)
+
         self.fusion_method = fusion_method
+        self.use_han = use_han
+
         self.lin_cat = nn.Linear(hid_size*6, hid_size*2)
         self.lin_out = nn.Linear(hid_size*2, num_class)
         self.relu = nn.ReLU()

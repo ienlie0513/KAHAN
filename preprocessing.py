@@ -36,7 +36,7 @@ class Preprocess():
             max_cmt: max number of comments in a subevent
             intervals: range of time index, for building time-based subevents
     """
-    def __init__(self, contents, comments, entities, images, labels, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec, sb_type, img_embed_params, only_newscontent, max_len=60, max_sent=30, max_ent=100, M=5, max_cmt=50, intervals=100):
+    def __init__(self, contents, comments, entities, images, labels, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec, sb_type, img_embed_params, only_newscontent, exclude_with_no_images, max_len=60, max_sent=30, max_ent=100, M=5, max_cmt=50, intervals=100):
         self.contents = contents
         self.comments = comments
         self.entities = entities
@@ -61,6 +61,7 @@ class Preprocess():
 
         self.img_embed_params = img_embed_params
         self.only_newscontent = only_newscontent
+        self.exclude_with_no_images = exclude_with_no_images
         
 
     def __len__(self):
@@ -307,11 +308,19 @@ class Preprocess():
             ent_vec, lk = self._knowledge_preprocesss(entity)
             img_vec = self._get_embeddings(image)
             
-            contents.append((torch.tensor(content_vec), torch.tensor(ln), torch.tensor(ls)))
-            comments.append((torch.tensor(comment_vec), torch.tensor(le), torch.tensor(lsb), torch.tensor(lc)))
-            entities.append((torch.tensor(ent_vec), torch.tensor(lk)))
-            images.append(img_vec)
-            labels.append(torch.tensor(label))
+            if self.exclude_with_no_images:
+                if image is not None:
+                    contents.append((torch.tensor(content_vec), torch.tensor(ln), torch.tensor(ls)))
+                    comments.append((torch.tensor(comment_vec), torch.tensor(le), torch.tensor(lsb), torch.tensor(lc)))
+                    entities.append((torch.tensor(ent_vec), torch.tensor(lk)))
+                    images.append(img_vec)
+                    labels.append(torch.tensor(label))
+            else:
+                contents.append((torch.tensor(content_vec), torch.tensor(ln), torch.tensor(ls)))
+                comments.append((torch.tensor(comment_vec), torch.tensor(le), torch.tensor(lsb), torch.tensor(lc)))
+                entities.append((torch.tensor(ent_vec), torch.tensor(lk)))
+                images.append(img_vec)
+                labels.append(torch.tensor(label))
 
         return contents, comments, entities, images, labels
 
@@ -324,6 +333,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--cnn", type=str, default="vgg19")
     parser.add_argument("--only_newscontent", action='store_true')
+    parser.add_argument("--exclude_with_no_images", action='store_true')
     args = parser.parse_args()
 
     # load data
@@ -368,13 +378,15 @@ if __name__ == '__main__':
 
     # preprocess data
     preprocessor = Preprocess(contents, comments, entities, images, labels, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec,
-            sb_type=config['sb_type'], img_embed_params=img_embed_params, only_newscontent=args.only_newscontent, max_len=config['max_len'], max_sent=config['max_sent'], max_ent=config['max_ent'], M=config['M'], max_cmt=config['max_cmt'])
+            sb_type=config['sb_type'], img_embed_params=img_embed_params, only_newscontent=args.only_newscontent, exclude_with_no_images=args.exclude_with_no_images , max_len=config['max_len'], max_sent=config['max_sent'], max_ent=config['max_ent'], M=config['M'], max_cmt=config['max_cmt'])
     contents, comments, entities, images, labels = preprocessor.preprocess()
 
     # save data
     save_path = ''
 
-    if args.only_newscontent:
+    if args.only_newscontent and args.exclude_with_no_images:
+        save_path = '{}/{}/preprocessed_only_newscontent_exclude_with_no_image.pt'.format(config['data_dir'], config['data_source'])
+    elif args.only_newscontent:
         save_path = '{}/{}/preprocessed_only_newscontent.pt'.format(config['data_dir'], config['data_source'])
     else:
        save_path = '{}/{}/preprocessed_{}.pt'.format(config['data_dir'], config['data_source'], args.cnn)

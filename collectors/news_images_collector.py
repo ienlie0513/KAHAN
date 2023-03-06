@@ -70,7 +70,7 @@ if __name__ == '__main__':
     args = argsparser.parse_args()
 
     data_dir = './data'
-    img_dir = 'news_images_v2'
+    img_dir = 'news_images'
 
     df_p = pd.read_csv(data_dir + '/' + args.platform + '_no_ignore_en.tsv', sep='\t')
     # df_g = pd.read_csv('./data/gossipcop_data.tsv', sep='\t')

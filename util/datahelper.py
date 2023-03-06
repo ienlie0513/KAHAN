@@ -87,11 +87,13 @@ def get_data(data_dir, data_source):
     return contents, comments, entities, images, labels
 
 
-def get_preprocessed_data(data_dir, data_source, model_type, exclude_with_no_image=False, only_newscontent=False):
+def get_preprocessed_data(data_dir, data_source, model_type, exclude_with_no_image=False, only_newscontent=False, use_ihan=False):
     loaded_data = None
     try:
         path = ''
-        if only_newscontent:
+        if only_newscontent and exclude_with_no_image:
+            path = '{}/{}/preprocessed_only_newscontent_exclude_with_no_image.pt'.format(data_dir, data_source)
+        elif only_newscontent:
             path = '{}/{}/preprocessed_only_newscontent.pt'.format(data_dir, data_source)
         else:
             path = '{}/{}/preprocessed_{}.pt'.format(data_dir, data_source, model_type)
@@ -108,7 +110,20 @@ def get_preprocessed_data(data_dir, data_source, model_type, exclude_with_no_ima
 
     for i in range(len(loaded_data['images'])):
         image_repr = loaded_data['images'][i]
-        if torch.sum(image_repr) != 0 or (not exclude_with_no_image):
+        if only_newscontent and exclude_with_no_image:
+            contents.append(loaded_data['contents'][i])
+            comments.append(loaded_data['comments'][i])
+            entities.append(loaded_data['entities'][i])
+            images.append(image_repr.numpy())
+            labels.append(loaded_data['labels'][i])
+        elif exclude_with_no_image:
+            if torch.sum(image_repr) != 0:
+                contents.append(loaded_data['contents'][i])
+                comments.append(loaded_data['comments'][i])
+                entities.append(loaded_data['entities'][i])
+                images.append(image_repr.numpy())
+                labels.append(loaded_data['labels'][i])
+        else:
             contents.append(loaded_data['contents'][i])
             comments.append(loaded_data['comments'][i])
             entities.append(loaded_data['entities'][i])
@@ -122,6 +137,16 @@ def get_preprocessed_data(data_dir, data_source, model_type, exclude_with_no_ima
     entities = np.asarray(entities)
     images = np.asarray(images)
     labels = np.asarray(labels)
+
+    if use_ihan:
+        ihan_images = np.zeros((len(images), 16, 16, 100))
+        for i in range(len(images)):
+            # Split the images into 16 "sentences" and 16 "words" of length 98
+            split_image = np.reshape(images[i], (-1, 16, 98))
+            # Add padding of zeroes to the "word" vectors
+            split_image = np.pad(split_image, ((0,0), (0,0), (0, 2)), 'constant')
+            ihan_images[i] = split_image
+        images = ihan_images
 
     return contents, comments, entities, images, labels
 
