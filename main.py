@@ -70,7 +70,7 @@ if __name__ == '__main__':
     parser.add_argument('--hid', type=str, default=None)
     parser.add_argument('--exclude_with_no_image', action='store_true')
     parser.add_argument('--only_newscontent', action='store_true')
-    parser.add_argument('--num_seeds', type=int, default=4)
+    parser.add_argument('--num_seeds', type=int, default=3)
     parser.add_argument('--use_han', action='store_true')
     args = parser.parse_args()
 

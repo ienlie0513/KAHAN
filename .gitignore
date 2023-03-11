@@ -6,6 +6,11 @@ word2vec
 # Data
 fakenewsnet_dataset
 fakenewsnet_dataset_v2
+fakenewsnet_dataset_v3
+
+data/gossipcop_no_ignore_en.tsv
+data/gossipcop_no_ignore_s.tsv
+
 REL
 apicache-py3
 
@@ -16,7 +21,9 @@ data/images_with_web_archive_url
 data/images_without_web_archive_url
 data/politifact
 
-data/politifact_v2/news_images_old
+data/politifact_v2
+data/politifact_v3
+data/gossipcop
 
 *.pt
 

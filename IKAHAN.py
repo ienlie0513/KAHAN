@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils import data
 
+import numpy as np
+
 class MaxPooling():
     def __init__(self, kernel_size):
         self.kernel_size = kernel_size
@@ -96,34 +98,80 @@ class IHAN(nn.Module):
         super(IHAN, self).__init__()
 
         self.fine = AttentionalBiRNN(emb_size, hid_size, dropout=dropout)
-        self.coarse = AttentionalBiRNN(hid_size*2, hid_size, dropout=dropout)
+        self.coarse = AttentionalBiRNN(hid_size*2+hid_size//2, hid_size, dropout=dropout)
 
-    def _reorder_input(self, input, lf, lc):
+        self.IME_attn = nn.MultiheadAttention(hid_size*2, 4)
+        self.ent_lin = nn.Linear(hid_size*2, hid_size//2)
+        self.relu = nn.ReLU()
+
+    def generate_lengths(self, input):
+        # input: (batch, coarse, fine, emb_size)
+        # output: lc: (batch) lf: (batch, coarse) 
+        lc = [input.shape[1] for _ in range(input.shape[0])]
+        lf = [[input.shape[2] for _ in range(input.shape[1])] for _ in range(input.shape[0])]
+
+        return np.asarray(lc), np.asarray(lf)
+
+    def _reorder_input(self, input, lc, lf):
         # (batch, coarse, fine, emb_size) to (# of coarse in the batch, fine, emb_size)
-        reordered_input = input.reshape(-1, input.shape[2], input.shape[3])
-        # convert to torch tensor
-        reordered_input = torch.tensor(reordered_input)
-        # assume no padding added (constant length)
-        len_f = [input.shape[2] for _ in input.shape[0]]
-        len_c = [input.shape[1] for _ in input.shape[0]]
+        reorder_input = [imgs[:lc[i]] for i, imgs in enumerate(input)]
+        reorder_input = torch.cat(reorder_input, axis=0)
 
-        return reordered_input, len_f, len_c
+        reorder_lf = [j for i, l in enumerate(lc) for j in lf[i][:l]]
+
+        return reorder_input, reorder_lf
 
     def _reorder_fine_output(self, output, lc):
-        # (# of coarse in the batch, 2*hidden) to (batch, max_coarse, 2*hidden)
-        reordered_output = output.reshape(-1, lc, output.shape[1])
+        # (# of sentences in the batch, 2*hidden) to (batch, max_sentence, 2*hidden)
+        prev_idx = 0
+        reorder_output = []
+        max_coarse = max(lc) # TODO: might need changing if padding actually included in the data
+        for i in lc:
+            coarse_emb = output[prev_idx:prev_idx+i]
+            coarse_emb = F.pad(coarse_emb, (0, 0, 0, max_coarse-len(coarse_emb)))
+            reorder_output.append(coarse_emb.unsqueeze(0))
+            prev_idx += i
 
-        return reordered_output
+        return torch.cat(reorder_output)
+        # # (# of coarse in the batch, 2*hidden) to (batch, max_coarse, 2*hidden)
+        # reordered_output = output.reshape(-1, lc, output.shape[1])
 
-    def forward(self, input, lf, lc):
-        input, len_f, len_c = self._reorder_input(input, lf, lc)
+        # return reordered_output
+
+    def forward(self, input, ent_embs, lk):
+        lc, lf = self.generate_lengths(input)
+        #print('input: {} lf: {} lc: {}'.format(input.shape, lf.shape, lc.shape))
+        input, len_f = self._reorder_input(input, lc, lf)
+        #print('input: {} len_f: {}'.format(input.size(), len_f))
         # fine graied level
         packed_fined = torch.nn.utils.rnn.pack_padded_sequence(input, len_f, batch_first=True, enforce_sorted=False)
-        fine_embs = self.fine(packed_fined, lf)
+        #print('packed_fined: {} dtype: {}'.format(packed_fined.data.size(), packed_fined.data.dtype))
+        fine_embs = self.fine(packed_fined, input.size(1))
+        #print('fine_embs: {}'.format(fine_embs.size()))
         # coarse grained level
         coarse_embs = self._reorder_fine_output(fine_embs, lc)
-        packed_coarse = torch.nn.utils.rnn.pack_padded_sequence(coarse_embs, len_c, batch_first=True, enforce_sorted=False)
-        image_vec = self.coarse(packed_coarse, lc)
+        #print('coarse_embs: {}'.format(coarse_embs.size()))
+
+
+        ## mask
+        idxes = torch.arange(0, ent_embs.size(1), out=ent_embs.data.new(ent_embs.size(1))).unsqueeze(1)
+        mask = (idxes>=lk.unsqueeze(0).to(idxes.device)).t() # (batch, max_ent)
+
+        # image, entity, entity attention, get weighted ent_embed
+        # Q sent: (batch, max_coarse, 2*hidden)
+        # V, K entity:(batch, max_ent, 2*hidden)
+        ent_embs, ent_attn = self.IME_attn(coarse_embs.transpose(0, 1), ent_embs.transpose(0, 1), ent_embs.transpose(0, 1), key_padding_mask=mask)
+        ent_embs = self.ent_lin(ent_embs) 
+        ent_embs = self.relu(ent_embs)
+
+        # cat weighted ent_embed to sent_embs
+        coarse_embs = torch.cat((coarse_embs, ent_embs.transpose(0, 1)), dim=2) # (batch, max_sent, 3*hidden)
+        #print('sent_embs: {} '.format(sent_embs.size()))
+
+        packed_coarse = torch.nn.utils.rnn.pack_padded_sequence(coarse_embs, lc, batch_first=True, enforce_sorted=False)
+        #print('packed_coarse: {}'.format(packed_coarse.data.size()))
+        image_vec = self.coarse(packed_coarse, coarse_embs.size(1))
+        #print('image_vec: {}'.format(image_vec.size()))
 
         return image_vec
 
@@ -166,16 +214,16 @@ class NHAN(nn.Module):
 
     def forward(self, input, ln, ls, ent_embs, lk):
         # cat all sentences in the batch
-        #print('input (0): {} '.format(input.size()))
+        #print('input (0): {} ln: {} ls: {} '.format(input.size(), ln.shape, ls.shape))
         input, ls = self._reorder_input(input, ln, ls)
-        #print('input (1): {} '.format(input.size()))
+        #print('input (1): {} ls: {} ls_len: {} '.format(input.size(), ls, len(ls)))
 
         # (# of sentences in the batch, max_length, emb_size)
         emb_w = self.embedding(input) 
         #print('emb_w: {} '.format(emb_w.size()))
         
         packed_sents = torch.nn.utils.rnn.pack_padded_sequence(emb_w, ls, batch_first=True, enforce_sorted=False)
-        #print('packed_sents: {} '.format(packed_sents.data.size()))
+        #print('packed_sents: {} dtype {} '.format(packed_sents.data.size(), packed_sents.data.dtype))
         sent_embs = self.word(packed_sents, emb_w.size(1))
         #print('sent_embs (0): {} '.format(sent_embs.size()))
 
@@ -344,7 +392,7 @@ class IKAHAN(nn.Module):
         # (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk)
         content_vec,_ = self.news(*cnt_input, *ent_input)
         comment_vec,_ = self.comment(*cmt_input, *ent_input) if torch.count_nonzero(cmt_input[-1]) > 0 else (torch.ones(cmt_input[0].size(0), 200), torch.tensor([]))
-        image_vec = self.image(img_input)
+        image_vec = self.image(img_input, *ent_input) if self.use_han else self.image(img_input)
 
         out = None
         if self.fusion_method == 'cat':

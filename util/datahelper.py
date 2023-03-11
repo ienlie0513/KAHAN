@@ -139,7 +139,7 @@ def get_preprocessed_data(data_dir, data_source, model_type, exclude_with_no_ima
     labels = np.asarray(labels)
 
     if use_ihan:
-        ihan_images = np.zeros((len(images), 16, 16, 100))
+        ihan_images = np.zeros((len(images), 16, 16, 100), dtype=np.float32)
         for i in range(len(images)):
             # Split the images into 16 "sentences" and 16 "words" of length 98
             split_image = np.reshape(images[i], (-1, 16, 98))

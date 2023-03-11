@@ -87,7 +87,6 @@ def get_data(df):
 
     for idx in range(df.id.shape[0]):
         text = df.text[idx]
-        print(type(df.id[idx]))
         text = text.encode('ascii', 'ignore').decode('utf-8')
         contents.append(sent_tokenize(text))
 

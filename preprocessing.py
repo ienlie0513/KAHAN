@@ -242,7 +242,10 @@ class Preprocess():
             l = int(self.intervals/self.M)
             N = self.M
             ordered_comments = [[] for i in range(self.intervals)]
+            print(len(ordered_comments))
+            print(len(comments))
             for cmt in comments:
+                print('cmt: {}'.format(cmt))
                 ordered_comments[cmt[1]].append(cmt)
             
             last_subevents = []
