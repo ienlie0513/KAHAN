@@ -25,6 +25,10 @@ data/politifact_v2
 data/politifact_v3
 data/gossipcop
 
+data/*
+
+openai_clip.py
+
 *.pt
 
 # Irrelevant

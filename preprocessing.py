@@ -5,8 +5,8 @@ import argparse
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torchvision.models import vgg19, resnet50, VGG19_Weights, ResNet50_Weights
+import torchvision.transforms as transforms
 
 from nltk import sent_tokenize
 from nltk.tokenize import word_tokenize
@@ -14,11 +14,11 @@ from nltk.corpus import stopwords
 from gensim.models.keyedvectors import KeyedVectors
 from wikipedia2vec import Wikipedia2Vec
 
-from ast import literal_eval
-
 from util.datahelper import get_data, get_entity_claim
 
 from tqdm import tqdm
+
+import open_clip
 
 # convert entity into embed
 
@@ -36,7 +36,7 @@ class Preprocess():
             max_cmt: max number of comments in a subevent
             intervals: range of time index, for building time-based subevents
     """
-    def __init__(self, contents, comments, entities, images, labels, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec, sb_type, img_embed_params, only_newscontent, exclude_with_no_images, max_len=60, max_sent=30, max_ent=100, M=5, max_cmt=50, intervals=100):
+    def __init__(self, contents, comments, entities, images, labels, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec, sb_type, img_embed_params, clip_embed_params, only_newscontent, exclude_with_no_images, use_clip, max_len=60, max_sent=30, max_ent=100, M=5, max_cmt=50, intervals=100):
         self.contents = contents
         self.comments = comments
         self.entities = entities
@@ -62,10 +62,63 @@ class Preprocess():
         self.img_embed_params = img_embed_params
         self.only_newscontent = only_newscontent
         self.exclude_with_no_images = exclude_with_no_images
+
+        self.use_clip = use_clip
+        self.clip_embed_params = clip_embed_params
         
 
     def __len__(self):
         return len(self.labels)
+    
+    def _get_clip_entity_embed(self, ent, tokenizer, model):
+        ent = tokenizer(ent.replace("_", " "))
+        with torch.no_grad():
+            ent = model.encode_text(ent)
+        return ent.numpy()
+
+    def _get_clip_claim_embed(self, ent, tokenizer, model):
+        if ent in self.claim_dict:
+            claims = self.claim_dict[ent]
+        else: 
+            return None
+        clm_embed = []
+        for clm in claims:
+            clm = clm.split(":")
+            clm = clm[1] if len(clm)>1 else clm[0]
+
+            clm = tokenizer(clm)
+            with torch.no_grad():
+                clm = model.encode_text(clm)
+            clm_embed.append(clm.numpy())
+        
+        # average claim vector
+        return np.average(clm_embed, axis=0)
+    
+    def _clip_knowledge_preprocess(self, ents, tokenizer, model, embedding_size=768):
+        ent_vec = []
+        for ent in ents:
+            ent_embed = self._get_clip_entity_embed(ent, tokenizer, model)
+            clm_embed = self._get_clip_claim_embed(ent, tokenizer, model)
+
+            if isinstance(ent_embed, np.ndarray) and isinstance(clm_embed, np.ndarray):
+                ent_vec.append(np.concatenate((ent_embed, clm_embed), axis=None))
+
+        lk = len(ent_vec) if len(ent_vec)<self.max_ent else self.max_ent
+        lk = lk if lk>0 else 1
+        #print('lk: {}'.format(lk))
+        
+        ent_vec = ent_vec[:self.max_ent]
+        #print('ent_vec: {}'.format(len(ent_vec)))
+        if ent_vec:
+            ent_vec = np.pad(ent_vec, ((0, self.max_ent-len(ent_vec)),(0, 0)))
+            #print('ent_vec: {}'.format(ent_vec.shape))
+        else:
+            ent_vec = np.full((self.max_ent, embedding_size), 0.0)
+            ent_vec = np.concatenate((ent_vec, ent_vec), axis=1)
+
+        #print('ent_vec: {}, lk: {}'.format(ent_vec.shape, lk))
+
+        return ent_vec, lk
 
     # convert entity into embed
     def _get_entity_embed(self, ent):
@@ -102,24 +155,32 @@ class Preprocess():
             return None
 
     # given entities in a sentence, return MAXPOOL entity embed and claim embed
-    def _knowledge_preprocesss(self, ents):
+    def _knowledge_preprocess(self, ents):
         ent_vec = []
         for ent in ents:
+            #print('ent: {}'.format(ent))
             ent_embed = self._get_entity_embed(ent)
+            #print('ent_embed: {}'.format(ent_embed.shape)) if ent_embed is not None else #print('ent_embed: None')
             clm_embed = self._get_claim_embed(ent)
+            #print('clm_embed: {}'.format(clm_embed.shape)) if clm_embed is not None else #print('clm_embed: None')
 
             if isinstance(ent_embed, np.ndarray) and isinstance(clm_embed, np.ndarray):
                 ent_vec.append(np.concatenate((ent_embed, clm_embed), axis=None))
 
         lk = len(ent_vec) if len(ent_vec)<self.max_ent else self.max_ent
         lk = lk if lk>0 else 1
+        #print('lk: {}'.format(lk))
         
         ent_vec = ent_vec[:self.max_ent]
+        #print('ent_vec: {}'.format(len(ent_vec)))
         if ent_vec:
             ent_vec = np.pad(ent_vec, ((0, self.max_ent-len(ent_vec)),(0, 0)))
+            #print('ent_vec: {}'.format(ent_vec.shape))
         else:
             ent_vec = np.full((self.max_ent, self.word2vec_cnt.vector_size), self.word2vec_cnt['_pad_'])
             ent_vec = np.concatenate((ent_vec, ent_vec), axis=1)
+
+        #print('ent_vec: {}, lk: {}'.format(ent_vec.shape, lk))
 
         return ent_vec, lk
 
@@ -173,7 +234,7 @@ class Preprocess():
 
         return word_vec, ln, ls
 
-     # reorder word2vec to make sure pad is behind
+    # reorder word2vec to make sure pad is behind
     def _comment_reorder(self, results):
         word_vec = [sb[0] for sb in results]
         lsb = [sb[1] for sb in results]
@@ -192,6 +253,7 @@ class Preprocess():
     # given comments of the subevent, return preprocessed comments, (max_cmt, max_len)
     def _comment_preprocess(self, comments):
         # if empty subevent
+        ##print('comments: {}'.format(comments))
         if comments == []:
             return np.full((self.max_cmt, self.max_len), self.word2vec_cmt.key_to_index['_pad_'], dtype=int), 0, [0]*self.max_cmt
 
@@ -199,6 +261,7 @@ class Preprocess():
         comments = [re.sub('[^a-zA-Z]', ' ', cmt) for cmt in comments]
         comments = [word_tokenize(cmt.lower()) for cmt in comments]
         comments = [[w for w in cmt if w not in stopwords.words('english')] for cmt in comments]
+        ##print('comments: {}'.format(comments))
         
         # convert word into index of word embedding
         word_vec = [[self.word2vec_cmt.key_to_index[w] if w in self.word2vec_cmt.key_to_index else self.word2vec_cmt.key_to_index['_unk_'] for w in cmt] for cmt in comments if cmt]
@@ -208,6 +271,7 @@ class Preprocess():
         lc = [len(cmt) if len(cmt)<self.max_len else self.max_len for cmt in word_vec]
         lc = lc[:self.max_cmt]
         lc = np.pad(lc, (0, self.max_cmt-len(lc))).astype(int)
+        ##print('lsb: {} lc: {}'.format(lc, lsb))
 
         # token padding
         word_vec = [cmt[:self.max_len] for cmt in word_vec]
@@ -242,10 +306,7 @@ class Preprocess():
             l = int(self.intervals/self.M)
             N = self.M
             ordered_comments = [[] for i in range(self.intervals)]
-            print(len(ordered_comments))
-            print(len(comments))
             for cmt in comments:
-                print('cmt: {}'.format(cmt))
                 ordered_comments[cmt[1]].append(cmt)
             
             last_subevents = []
@@ -270,12 +331,26 @@ class Preprocess():
                     last_subevents = subevents
 
         results = [self._comment_preprocess(sb) for sb in subevents]
+        ##print('results: {}'.format(results))
 
         le = np.count_nonzero([sb[1] for sb in results])
+        ##print('le: {}'.format(le))
         word_vec, lsb, lc = self._comment_reorder(results)
+        ##print('lsb: {} lc: {}'.format(lsb, lc))
 
         return word_vec, le, lsb, lc
     
+    # create a vector space representation of the image using clip
+    def _get_image_vector_space_representation(self, image):
+        image_features = None
+        if image is None or self.only_newscontent:
+            image_features = torch.zeros(self.clip_embed_params['embedding_size'])
+        else:
+            image = self.clip_embed_params['preprocess'](image).unsqueeze(0)
+            with torch.no_grad():
+                image_features = self.clip_embed_params['model'].encode_image(image).squeeze(0)
+        return image_features
+
     # create embedding of the PIL image object and return
     def _get_embeddings(self, image):
         embedding = None
@@ -296,6 +371,7 @@ class Preprocess():
         contents = []
         comments = []
         entities = []
+        # clip_entities = []
         images = []
         labels = []
 
@@ -308,20 +384,23 @@ class Preprocess():
 
             content_vec, ln, ls = self._news_content_preprocess(content)
             comment_vec, le, lsb, lc = self._build_subevents(comment)
-            ent_vec, lk = self._knowledge_preprocesss(entity)
-            img_vec = self._get_embeddings(image)
+            ent_vec, lk = self._knowledge_preprocess(entity)
+            # clip_ent_vec, clip_lk = self._clip_knowledge_preprocesss(entity, self.clip_embed_params['tokenizer'], self.clip_embed_params['model'], self.clip_embed_params['embedding_size'])
+            img_vec = self._get_image_vector_space_representation(image) if self.use_clip else self._get_embeddings(image)
             
             if self.exclude_with_no_images:
                 if image is not None:
                     contents.append((torch.tensor(content_vec), torch.tensor(ln), torch.tensor(ls)))
                     comments.append((torch.tensor(comment_vec), torch.tensor(le), torch.tensor(lsb), torch.tensor(lc)))
                     entities.append((torch.tensor(ent_vec), torch.tensor(lk)))
+                    # clip_entities.append((torch.tensor(clip_ent_vec), torch.tensor(clip_lk)))
                     images.append(img_vec)
                     labels.append(torch.tensor(label))
             else:
                 contents.append((torch.tensor(content_vec), torch.tensor(ln), torch.tensor(ls)))
                 comments.append((torch.tensor(comment_vec), torch.tensor(le), torch.tensor(lsb), torch.tensor(lc)))
                 entities.append((torch.tensor(ent_vec), torch.tensor(lk)))
+                # clip_entities.append((torch.tensor(clip_ent_vec), torch.tensor(clip_lk)))
                 images.append(img_vec)
                 labels.append(torch.tensor(label))
 
@@ -329,15 +408,22 @@ class Preprocess():
 
 
 if __name__ == '__main__':
-    # load config
-    config = json.load(open("./config_p.json"))
-    # config = json.load(open("./config_g.json"))
-
     parser = argparse.ArgumentParser()
+    parser.add_argument("--platform", type=str, default="politifact")
     parser.add_argument("--cnn", type=str, default="vgg19")
     parser.add_argument("--only_newscontent", action='store_true')
     parser.add_argument("--exclude_with_no_images", action='store_true')
+    parser.add_argument("--use_clip", action='store_true')
     args = parser.parse_args()
+
+    # load config
+    config = None
+    if args.platform == "politifact":
+        config = json.load(open("./config_p.json"))
+    elif args.platform == "gossipcop":
+        config = json.load(open("./config_g.json"))
+    else:
+        raise ValueError("Invalid platform argument")
 
     # load data
     contents, comments, entities, images, labels = get_data(config['data_dir'], config['data_source'])
@@ -378,10 +464,18 @@ if __name__ == '__main__':
         img_embed_params.update({'model': model, 'preprocess': preprocess, 'embedding_size': embedding_size})
     else:
         raise ValueError('CNN model not supported')
+    
+    model, _, preprocess = open_clip.create_model_and_transforms('ViT-L-14', pretrained='laion400m_e32')
+    tokenizer = open_clip.get_tokenizer('ViT-L-14')
+    transform = transforms.Compose([
+        transforms.ToPILImage()
+    ])
+    # add to config
+    clip_embed_params = {'model': model, 'transform': transform, 'preprocess': preprocess, 'tokenizer': tokenizer, 'embedding_size': 768}
 
     # preprocess data
     preprocessor = Preprocess(contents, comments, entities, images, labels, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec,
-            sb_type=config['sb_type'], img_embed_params=img_embed_params, only_newscontent=args.only_newscontent, exclude_with_no_images=args.exclude_with_no_images , max_len=config['max_len'], max_sent=config['max_sent'], max_ent=config['max_ent'], M=config['M'], max_cmt=config['max_cmt'])
+            sb_type=config['sb_type'], img_embed_params=img_embed_params, clip_embed_params=clip_embed_params, only_newscontent=args.only_newscontent, exclude_with_no_images=args.exclude_with_no_images, use_clip=args.use_clip, max_len=config['max_len'], max_sent=config['max_sent'], max_ent=config['max_ent'], M=config['M'], max_cmt=config['max_cmt'])
     contents, comments, entities, images, labels = preprocessor.preprocess()
 
     # save data
@@ -391,6 +485,8 @@ if __name__ == '__main__':
         save_path = '{}/{}/preprocessed_only_newscontent_exclude_with_no_image.pt'.format(config['data_dir'], config['data_source'])
     elif args.only_newscontent:
         save_path = '{}/{}/preprocessed_only_newscontent.pt'.format(config['data_dir'], config['data_source'])
+    elif args.use_clip:
+        save_path = '{}/{}/preprocessed_clip.pt'.format(config['data_dir'], config['data_source'])
     else:
        save_path = '{}/{}/preprocessed_{}.pt'.format(config['data_dir'], config['data_source'], args.cnn)
 

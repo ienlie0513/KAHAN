@@ -64,10 +64,20 @@ def get_data(data_dir, data_source):
         entities.append(ens)
 
         # load images
-        if df.label[idx] == 1:
-            path = data_dir + '/' + data_source + '/news_images/' + 'real/politifact_' + str(df.id[idx]) + '.jpg'
+        path = ''
+        if data_source.startswith('politifact'):
+            if df.label[idx] == 1:
+                path = data_dir + '/' + data_source + '/news_images/' + 'real/politifact_' + str(df.id[idx]) + '.jpg'
+            else:
+                path = data_dir + '/' + data_source + '/news_images/' + 'fake/politifact_' + str(df.id[idx]) + '.jpg'
+        elif data_source.startswith('gossipcop'):
+            path = data_dir + '/' + data_source + '/news_images/' + str(df.id[idx]) + '.jpg'
+        elif data_source.startswith('snopes'):
+            # https://github.com/nguyenvo09/EMNLP2020
+            pass
         else:
-            path = data_dir + '/' + data_source + '/news_images/' + 'fake/politifact_' + str(df.id[idx]) + '.jpg'
+            print('Invalid data source: {}'.format(data_source))
+            exit()
 
         if os.path.exists(path):
             with Image.open(path) as img:
@@ -87,11 +97,13 @@ def get_data(data_dir, data_source):
     return contents, comments, entities, images, labels
 
 
-def get_preprocessed_data(data_dir, data_source, model_type, exclude_with_no_image=False, only_newscontent=False, use_ihan=False):
+def get_preprocessed_data(data_dir, data_source, model_type, exclude_with_no_image=False, only_newscontent=False, use_ihan=False, use_clip=False):
     loaded_data = None
     try:
         path = ''
-        if only_newscontent and exclude_with_no_image:
+        if use_clip:
+            path = '{}/{}/preprocessed_clip.pt'.format(data_dir, data_source)
+        elif only_newscontent and exclude_with_no_image:
             path = '{}/{}/preprocessed_only_newscontent_exclude_with_no_image.pt'.format(data_dir, data_source)
         elif only_newscontent:
             path = '{}/{}/preprocessed_only_newscontent.pt'.format(data_dir, data_source)

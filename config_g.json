@@ -9,6 +9,7 @@
     "max_len": 120,
     "max_sent": 50,
     "max_ent": 100,
+    "intervals": 100,
     "M": 5,
     "max_cmt": 50, 
     "print_every": 10,
@@ -20,5 +21,11 @@
     "word2vec_dim": 100,
     "wiki2vec": "./word2vec/enwiki_20180420_100d.pkl",
     "wiki2vec_dim": 100,
-    "device": "cpu"
+    "device": "cpu",
+    "image_preprocessing": {
+        "resnet50_embed_size": 100352,
+        "vgg19_embed_size": 25088,
+        "resnet50_downsample_kernel_size": 500,
+        "vgg19_downsample_kernel_size": 125
+    }
 }

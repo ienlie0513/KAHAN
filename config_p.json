@@ -9,6 +9,7 @@
     "max_len": 120,
     "max_sent": 50,
     "max_ent": 100,
+    "intervals": 100,
     "M": 5,
     "max_cmt": 50, 
     "print_every": 10,

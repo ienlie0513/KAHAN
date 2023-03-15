@@ -46,11 +46,11 @@ class EmbedAttention(nn.Module):
         self.attn = nn.Linear(att_size, 1)
 
     def forward(self, input, len_s, total_length):
-        #print('input: {} len_s: {} total_length: {}'.format(input.size(), len_s, total_length))
+        ##print('input: {} len_s: {} total_length: {}'.format(input.size(), len_s, total_length))
         att = self.attn(input).squeeze(-1)
-        #print('att: {}'.format(att.size()))
+        ##print('att: {}'.format(att.size()))
         out = self._masked_softmax(att, len_s, total_length).unsqueeze(-1)
-        #print('out: {}'.format(out.size()))
+        ##print('out: {}'.format(out.size()))
 
         return out
 
@@ -75,19 +75,19 @@ class AttentionalBiRNN(nn.Module):
         self.emb_att = EmbedAttention(hid_size*2)
     
     def forward(self, packed_batch, total_length):
-        #print('packed_batch: {} total_length: {}'.format(packed_batch.data.size(), total_length))
+        ##print('packed_batch: {} total_length: {}'.format(packed_batch.data.size(), total_length))
         rnn_output, _ = self.rnn(packed_batch)
-        #print('rnn_output: {}'.format(rnn_output.data.size()))
+        ##print('rnn_output: {}'.format(rnn_output.data.size()))
         enc_output, len_s = torch.nn.utils.rnn.pad_packed_sequence(rnn_output, batch_first=True, total_length=total_length)
-        #print('enc_output: {} len_s: {}'.format(enc_output.data.size(), len_s))
+        ##print('enc_output: {} len_s: {}'.format(enc_output.data.size(), len_s))
 
         enc_output = self.dropout(enc_output)
-        #print('enc_output: {}'.format(enc_output.size()))
+        ##print('enc_output: {}'.format(enc_output.size()))
         emb_h = torch.tanh(self.lin(enc_output))
-        #print('emb_h: {}'.format(emb_h.size()))
+        ##print('emb_h: {}'.format(emb_h.size()))
 
         attended = self.emb_att(emb_h, len_s, total_length) * enc_output
-        #print('attended: {}'.format(attended.size()))
+        ##print('attended: {}'.format(attended.size()))
         
         return attended.sum(1)
     
@@ -140,17 +140,17 @@ class IHAN(nn.Module):
 
     def forward(self, input, ent_embs, lk):
         lc, lf = self.generate_lengths(input)
-        #print('input: {} lf: {} lc: {}'.format(input.shape, lf.shape, lc.shape))
+        ##print('input: {} lf: {} lc: {}'.format(input.shape, lf.shape, lc.shape))
         input, len_f = self._reorder_input(input, lc, lf)
-        #print('input: {} len_f: {}'.format(input.size(), len_f))
+        ##print('input: {} len_f: {}'.format(input.size(), len_f))
         # fine graied level
         packed_fined = torch.nn.utils.rnn.pack_padded_sequence(input, len_f, batch_first=True, enforce_sorted=False)
-        #print('packed_fined: {} dtype: {}'.format(packed_fined.data.size(), packed_fined.data.dtype))
+        ##print('packed_fined: {} dtype: {}'.format(packed_fined.data.size(), packed_fined.data.dtype))
         fine_embs = self.fine(packed_fined, input.size(1))
-        #print('fine_embs: {}'.format(fine_embs.size()))
+        ##print('fine_embs: {}'.format(fine_embs.size()))
         # coarse grained level
         coarse_embs = self._reorder_fine_output(fine_embs, lc)
-        #print('coarse_embs: {}'.format(coarse_embs.size()))
+        ##print('coarse_embs: {}'.format(coarse_embs.size()))
 
 
         ## mask
@@ -166,12 +166,12 @@ class IHAN(nn.Module):
 
         # cat weighted ent_embed to sent_embs
         coarse_embs = torch.cat((coarse_embs, ent_embs.transpose(0, 1)), dim=2) # (batch, max_sent, 3*hidden)
-        #print('sent_embs: {} '.format(sent_embs.size()))
+        ##print('sent_embs: {} '.format(sent_embs.size()))
 
         packed_coarse = torch.nn.utils.rnn.pack_padded_sequence(coarse_embs, lc, batch_first=True, enforce_sorted=False)
-        #print('packed_coarse: {}'.format(packed_coarse.data.size()))
+        ##print('packed_coarse: {}'.format(packed_coarse.data.size()))
         image_vec = self.coarse(packed_coarse, coarse_embs.size(1))
-        #print('image_vec: {}'.format(image_vec.size()))
+        ##print('image_vec: {}'.format(image_vec.size()))
 
         return image_vec
 
@@ -214,22 +214,22 @@ class NHAN(nn.Module):
 
     def forward(self, input, ln, ls, ent_embs, lk):
         # cat all sentences in the batch
-        #print('input (0): {} ln: {} ls: {} '.format(input.size(), ln.shape, ls.shape))
+        ##print('input (0): {} ln: {} ls: {} '.format(input.size(), ln.shape, ls.shape))
         input, ls = self._reorder_input(input, ln, ls)
-        #print('input (1): {} ls: {} ls_len: {} '.format(input.size(), ls, len(ls)))
+        ##print('input (1): {} ls: {} ls_len: {} '.format(input.size(), ls, len(ls)))
 
         # (# of sentences in the batch, max_length, emb_size)
         emb_w = self.embedding(input) 
-        #print('emb_w: {} '.format(emb_w.size()))
+        ##print('emb_w: {} '.format(emb_w.size()))
         
         packed_sents = torch.nn.utils.rnn.pack_padded_sequence(emb_w, ls, batch_first=True, enforce_sorted=False)
-        #print('packed_sents: {} dtype {} '.format(packed_sents.data.size(), packed_sents.data.dtype))
+        ##print('packed_sents: {} dtype {} '.format(packed_sents.data.size(), packed_sents.data.dtype))
         sent_embs = self.word(packed_sents, emb_w.size(1))
-        #print('sent_embs (0): {} '.format(sent_embs.size()))
+        ##print('sent_embs (0): {} '.format(sent_embs.size()))
 
         # recover sentence embs to batch
         sent_embs = self._reorder_word_output(sent_embs, ln)
-        #print('sent_embs (1): {} '.format(sent_embs.size()))
+        ##print('sent_embs (1): {} '.format(sent_embs.size()))
 
         ## mask
         idxes = torch.arange(0, ent_embs.size(1), out=ent_embs.data.new(ent_embs.size(1))).unsqueeze(1)
@@ -244,13 +244,13 @@ class NHAN(nn.Module):
 
         # cat weighted ent_embed to sent_embs
         sent_embs = torch.cat((sent_embs, ent_embs.transpose(0, 1)), dim=2) # (batch, max_sent, 3*hidden)
-        #print('sent_embs: {} '.format(sent_embs.size()))
+        ##print('sent_embs: {} '.format(sent_embs.size()))
 
-        #print('sent_embs: {} num sentences (ln) {} '.format(sent_embs.size(), ln))
+        ##print('sent_embs: {} num sentences (ln) {} '.format(sent_embs.size(), ln))
         packed_news = torch.nn.utils.rnn.pack_padded_sequence(sent_embs, ln, batch_first=True, enforce_sorted=False)
-        #print('packed_news: {} '.format(packed_news.data.size()))
+        ##print('packed_news: {} '.format(packed_news.data.size()))
         content_vec = self.sent(packed_news, sent_embs.size(1))
-        #print('content_vec: {} '.format(content_vec.size()))
+        ##print('content_vec: {} '.format(content_vec.size()))
 
         return content_vec, ent_attn # (batch, hid_size*2)
 
@@ -310,16 +310,19 @@ class CHAN(nn.Module):
     def forward(self, input, le, lsb, lc, ent_embs, lk):
         # cat all comments in the batch
         input, lc = self._reorder_input(input, le, lsb, lc)
+        #print('input: {} lc: {} '.format(input.size(), len(lc)))
 
         # (# of comments in the batch, max_length, emb_size)
         emb_w = self.embedding(input)
 
         packed_cmts = torch.nn.utils.rnn.pack_padded_sequence(emb_w, lc, batch_first=True, enforce_sorted=False)
         post_embs = self.word(packed_cmts, emb_w.size(1))
+        #print('post_embs: {} '.format(post_embs.size()))
 
         post_embs, lsb = self._reorder_word_output(post_embs, le, lsb)
         
         packed_sb = torch.nn.utils.rnn.pack_padded_sequence(post_embs, lsb, batch_first=True, enforce_sorted=False)
+        #print('packed_sb: {} '.format(packed_sb.data.size()))
         sb_embs = self.post(packed_sb, post_embs.size(1))
 
         sb_embs = self._reorder_post_output(sb_embs, le)
@@ -337,6 +340,7 @@ class CHAN(nn.Module):
 
         # cat weighted ent_embed to sb_embeds
         sb_embs = torch.cat((sb_embs, ent_embs.transpose(0, 1)), dim=2) # (batch, M, 3*hidden)
+        #print('sb_embs: {} le size: {} le {}'.format(sb_embs.size(), le.size(), le))
 
         packed_news = torch.nn.utils.rnn.pack_padded_sequence(sb_embs, le, batch_first=True, enforce_sorted=False)
         comment_vec = self.subevent(packed_news, sb_embs.size(1))
@@ -362,7 +366,7 @@ class Downsample(nn.Module):
 
 class IKAHAN(nn.Module):
 
-    def __init__(self, num_class, word2vec_cnt, word2vec_cmt, downsample_params, fusion_method, use_han=False, emb_size=100, hid_size=100, max_sent=50, dropout=0.3):
+    def __init__(self, num_class, word2vec_cnt, word2vec_cmt, downsample_params, fusion_method, use_han=False, use_clip=False, emb_size=100, hid_size=100, max_sent=50, dropout=0.3):
         super(IKAHAN, self).__init__()
 
         self.news = NHAN(word2vec_cnt, emb_size, hid_size, max_sent, dropout)
@@ -371,8 +375,9 @@ class IKAHAN(nn.Module):
 
         self.fusion_method = fusion_method
         self.use_han = use_han
+        self.use_clip = use_clip
 
-        self.lin_cat = nn.Linear(hid_size*6, hid_size*2)
+        self.lin_cat = nn.Linear(hid_size*4 + 768, hid_size*2) if use_clip else nn.Linear(hid_size*6, hid_size*2)
         self.lin_out = nn.Linear(hid_size*2, num_class)
         self.relu = nn.ReLU()
 
@@ -392,17 +397,29 @@ class IKAHAN(nn.Module):
         # (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk)
         content_vec,_ = self.news(*cnt_input, *ent_input)
         comment_vec,_ = self.comment(*cmt_input, *ent_input) if torch.count_nonzero(cmt_input[-1]) > 0 else (torch.ones(cmt_input[0].size(0), 200), torch.tensor([]))
-        image_vec = self.image(img_input, *ent_input) if self.use_han else self.image(img_input)
+        image_vec = None
+        if self.use_han:
+            image_vec = self.image(img_input, *ent_input)
+        if self.use_clip:
+            image_vec = img_input
+        else:
+            image_vec = self.image(img_input)
 
         out = None
-        if self.fusion_method == 'cat':
+
+        if self.use_clip:
             out = torch.cat((content_vec, comment_vec, image_vec), dim=1)
             out = self.lin_cat(out)
             out = self.relu(out)
-        elif self.fusion_method == 'elem_mult':
-            out = content_vec * comment_vec * image_vec
-        elif self.fusion_method == 'avg':
-            out = (content_vec + comment_vec + image_vec) / 3
+        else:
+            if self.fusion_method == 'cat':
+                out = torch.cat((content_vec, comment_vec, image_vec), dim=1)
+                out = self.lin_cat(out)
+                out = self.relu(out)
+            elif self.fusion_method == 'elem_mult':
+                out = content_vec * comment_vec * image_vec
+            elif self.fusion_method == 'avg':
+                out = (content_vec + comment_vec + image_vec) / 3
 
         out = self.lin_out(out)
 

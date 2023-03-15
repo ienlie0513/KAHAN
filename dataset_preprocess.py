@@ -17,16 +17,37 @@ os.makedirs(dir_path, exist_ok=True)
 # create a log file for datanalysis
 log_file = open(dir_path + '/preprocessing_log.txt', 'w')
 
-def get_comments(file_path):
+def get_time_index(file_content, intervals):
+    utc_value = {}
+    for comment in file_content.values():
+        for c in comment:
+            utc_value[c['created_at']] = None
+    # sort utc_value dict by key (timestamp)
+    utc_value = dict(sorted(utc_value.items(), key=lambda item: item[0]))
+    # get time index
+    indexes = [[] for _ in range(intervals)]
+    for i in range(len(utc_value.keys())):
+        indexes[i % intervals].append(i % intervals)
+    time_index = [i for lst in indexes for i in lst]
+    # Assign value of each key (timestamp) to the corresponding time index
+    for i, key in enumerate(utc_value.keys()):
+        utc_value[key] = time_index[i]
+    # return utc_value dict
+    return utc_value
+
+def get_comments(file_path, intervals):
     comments = ''
     try:
         with open(file_path) as f:
             file_content = json.load(f)
+            time_index = get_time_index(file_content, intervals)
             for comment in file_content.values():
                 for c in comment:
-                    text = re.sub(r'<>+', '', c['text'])
+                    # remove <> and :: from text
+                    text = re.sub(r'<>+', '', c['text']) 
                     text = re.sub(r'::+', '', text)
-                    comments += text + '<>' + c['created_at'] + '::'
+                    # Add comment texted followed by its timestamp
+                    comments += text + '<>' + str(time_index[c['created_at']]) + '::'
     except Exception as e:
         print('Error: ', e)
     finally:
@@ -55,13 +76,13 @@ def get_news_content(file_path):
         return text, image, all_images
     
 
-def preprocess_news_data(_dir, sub_dir):
+def preprocess_news_data(_dir, sub_dir, intervals):
     contents = []
     for sub_sub_dir in ['fake', 'real']:
         for folder in os.listdir(_dir + '/' + sub_dir + '/' + sub_sub_dir):
             n_id = re.findall(r'\d+', folder)[0]
             text, image, all_images = get_news_content(_dir + '/' + sub_dir + '/' + sub_sub_dir + '/' + folder + '/news_article.json')
-            comments = get_comments(_dir + '/' + sub_dir + '/' + sub_sub_dir + '/' + folder + '/replies.json')
+            comments = get_comments(_dir + '/' + sub_dir + '/' + sub_sub_dir + '/' + folder + '/replies.json', intervals)
             log_file.write('{}: {} \r'.format(n_id, text[:100]))
             contents.append({
                 'id': n_id,
@@ -104,41 +125,19 @@ def dataset_imputer(impt_from, impt_to, dataset):
             except Exception as e:
                 print('Error: ', e)
 
-
-# def preprocess_news_data(_dir, sub_dir):
-#     contents = []
-#     for sub_sub_dir in ['fake', 'real']:
-#         for folder in os.listdir(_dir + '/' + sub_dir + '/' + sub_sub_dir):
-#             news_content = {}
-#             news_content['id'] = re.findall(r'\d+', folder)[0]
-#             try:
-#                 with open(_dir + '/' + sub_dir + '/' + sub_sub_dir + '/' + folder + '/news content.json') as f:
-#                     file_content = json.load(f)
-#                     # log_file.write('{} \r {} \r {}...\r'.format(news_content['id'], file_content['url'],  file_content['text'][:100]))
-#                     log_file.write('{}: {} \r'.format(news_content['id'], file_content['text'][:100]))
-#                     news_content['text'] = file_content['text']
-#                     news_content['image'] = file_content['top_img']
-#                     news_content['all_images'] = file_content['images']
-#                     news_content['label'] = 1 if sub_sub_dir == 'real' else 0
-#                     contents.append(news_content)
-#             except Exception as e:
-#                 print(e)
-#                 news_content['text'] = ''
-#                 news_content['image'] = ''
-#                 news_content['all_images'] = ''
-#                 news_content['label'] = 1 if sub_sub_dir == 'real' else 0
-#                 news_content['comments'] = ''
-#                 news_contents.append(news_content)
-
-#     return news_contents
-
 #dataset_imputer('fakenewsnet_dataset_v2', 'fakenewsnet_dataset_v3', 'gossipcop')
 
-gossipcop_news_contents = preprocess_news_data('fakenewsnet_dataset_v3', 'gossipcop')
-gossipcop_news_contents_df = pd.DataFrame(gossipcop_news_contents)
-gossipcop_news_contents_df.to_csv('data/gossipcop_no_ignore_s.tsv', sep='\t', index=False)
+if __name__ == '__main__':
+    config = json.load(open('./config_p.json'))
+    config = json.load(open('./config_g.json'))
 
-politifact_news_contents = preprocess_news_data('fakenewsnet_dataset_v3', 'politifact')
-politifact_news_contents_df = pd.DataFrame(politifact_news_contents)
-politifact_news_contents_df.to_csv('data/politifact_v3_no_ignore_s.tsv', sep='\t', index=False)
+    gossipcop_news_contents = preprocess_news_data('fakenewsnet_dataset_v3', 'gossipcop', config['intervals'])
+    gossipcop_news_contents_df = pd.DataFrame(gossipcop_news_contents)
+    gossipcop_news_contents_df.to_csv('data/gossipcop_no_ignore_s.tsv', sep='\t', index=False)
+
+    politifact_news_contents = preprocess_news_data('fakenewsnet_dataset_v3', 'politifact', config['intervals'])
+    politifact_news_contents_df = pd.DataFrame(politifact_news_contents)
+    politifact_news_contents_df.to_csv('data/politifact_v3_no_ignore_s.tsv', sep='\t', index=False)
+
+
 

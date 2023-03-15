@@ -30,12 +30,14 @@ def log_and_print(s, log):
     print(s)
     log.write(s + '\n')
 
-def init_archive(config, model_type, downsample_method, fusion_method, hid, exclude_with_no_image, only_newscontent):
+def init_archive(config, model_type, downsample_method, fusion_method, hid, exclude_with_no_image, only_newscontent, use_clip):
     # create log file
     now = datetime.now().strftime('%Y_%m_%d_%H:%M:%S')
     root = ''
     hid = '' if not hid else hid
-    if only_newscontent:
+    if use_clip:
+        root = './model_ckpts/{}_clip_{}'.format(config['data_source'], now)
+    elif only_newscontent:
         root = './model_ckpts/{}_only_newscontent_{}'.format(config['data_source'], now)
     elif exclude_with_no_image:
         root = './model_ckpts/{}_excluded_no_img_cases_{}_{}{}_{}_{}'.format(config['data_source'], model_type, downsample_method, hid, fusion_method, now)
@@ -72,6 +74,7 @@ if __name__ == '__main__':
     parser.add_argument('--only_newscontent', action='store_true')
     parser.add_argument('--num_seeds', type=int, default=3)
     parser.add_argument('--use_han', action='store_true')
+    parser.add_argument('--use_clip', action='store_true')
     args = parser.parse_args()
 
     downsample_params = {
@@ -81,10 +84,10 @@ if __name__ == '__main__':
         'hid_layers': literal_eval(args.hid) if args.hid else []
     }
 
-    log, img_dir, ckpt_dir = init_archive(config, args.cnn, args.downsample, args.fusion, args.hid, args.exclude_with_no_image, args.only_newscontent)
+    log, img_dir, ckpt_dir = init_archive(config, args.cnn, args.downsample, args.fusion, args.hid, args.exclude_with_no_image, args.only_newscontent, args.use_clip)
 
     # load data
-    contents, comments, entities, images, labels = get_preprocessed_data(config['data_dir'], config['data_source'], args.cnn, args.exclude_with_no_image, args.only_newscontent, args.use_han)
+    contents, comments, entities, images, labels = get_preprocessed_data(config['data_dir'], config['data_source'], args.cnn, args.exclude_with_no_image, args.only_newscontent, args.use_han, args.use_clip)
 
     # load word2vec, wiki2vec model and add unk vector
     word2vec_cnt = KeyedVectors.load_word2vec_format(config['word2vec_cnt'])
@@ -123,14 +126,14 @@ if __name__ == '__main__':
             validset = KaDataset(x_val, c_val, e_val, i_val, y_val)
 
             # training
-            model = IKAHAN(config['num_class'], word2vec_cnt, word2vec_cmt, downsample_params, args.fusion, args.use_han, config['word2vec_dim'], config['hid_size'], max_sent=config['max_sent'], dropout=config['dropout'])
+            model = IKAHAN(config['num_class'], word2vec_cnt, word2vec_cmt, downsample_params, args.fusion, args.use_han, args.use_clip, config['word2vec_dim'], config['hid_size'], max_sent=config['max_sent'], dropout=config['dropout'])
             train_accs, test_accs, train_losses, test_losses, model_name = trainIters(model, trainset, validset, train, evaluate,
                 epochs=config['ep'], learning_rate=config['lr'], batch_size=config['batch_size'], weight_decay=config['weight_decay'],
                 save_info=(fold, ckpt_dir), print_every=config['print_every'], device=config['device'], log=log)
             show_result(train_accs, test_accs, train_losses, test_losses, save=(fold, img_dir))
 
             # evaluate
-            model = IKAHAN(config['num_class'], word2vec_cnt, word2vec_cmt, downsample_params, args.fusion, args.use_han, config['word2vec_dim'], config['hid_size'], max_sent=config['max_sent'], dropout=config['dropout']).to(config['device'])
+            model = IKAHAN(config['num_class'], word2vec_cnt, word2vec_cmt, downsample_params, args.fusion, args.use_han, args.use_clip, config['word2vec_dim'], config['hid_size'], max_sent=config['max_sent'], dropout=config['dropout']).to(config['device'])
             model.load_state_dict(torch.load(model_name))
             _, acc, predicts, targets = evaluate(model, validset, device=config['device'])
             acc, precision, recall, microf1, macrof1 = calculate_metrics(acc, targets, predicts, log=log)
