@@ -30,15 +30,15 @@ def log_and_print(s, log):
     print(s)
     log.write(s + '\n')
 
-def init_archive(config, model_type, downsample_method, fusion_method, hid, exclude_with_no_image, only_newscontent, use_clip):
+def init_archive(config, model_type, downsample_method, fusion_method, hid, exclude_with_no_image, kahan, use_clip):
     # create log file
     now = datetime.now().strftime('%Y_%m_%d_%H:%M:%S')
     root = ''
     hid = '' if not hid else hid
     if use_clip:
         root = './model_ckpts/{}_clip_{}'.format(config['data_source'], now)
-    elif only_newscontent:
-        root = './model_ckpts/{}_only_newscontent_{}'.format(config['data_source'], now)
+    elif kahan:
+        root = './model_ckpts/{}_kahan_{}'.format(config['data_source'], now)
     elif exclude_with_no_image:
         root = './model_ckpts/{}_excluded_no_img_cases_{}_{}{}_{}_{}'.format(config['data_source'], model_type, downsample_method, hid, fusion_method, now)
     else:
@@ -71,7 +71,7 @@ if __name__ == '__main__':
     parser.add_argument('--fusion', type=str, default='cat')
     parser.add_argument('--hid', type=str, default=None)
     parser.add_argument('--exclude_with_no_image', action='store_true')
-    parser.add_argument('--only_newscontent', action='store_true')
+    parser.add_argument('--kahan', action='store_true')
     parser.add_argument('--num_seeds', type=int, default=3)
     parser.add_argument('--use_han', action='store_true')
     parser.add_argument('--use_clip', action='store_true')
@@ -84,10 +84,10 @@ if __name__ == '__main__':
         'hid_layers': literal_eval(args.hid) if args.hid else []
     }
 
-    log, img_dir, ckpt_dir = init_archive(config, args.cnn, args.downsample, args.fusion, args.hid, args.exclude_with_no_image, args.only_newscontent, args.use_clip)
+    log, img_dir, ckpt_dir = init_archive(config, args.cnn, args.downsample, args.fusion, args.hid, args.exclude_with_no_image, args.kahan, args.use_clip)
 
     # load data
-    contents, comments, entities, images, labels = get_preprocessed_data(config['data_dir'], config['data_source'], args.cnn, args.exclude_with_no_image, args.only_newscontent, args.use_han, args.use_clip)
+    contents, comments, entities, images, labels = get_preprocessed_data(config['data_dir'], config['data_source'], args.cnn, args.exclude_with_no_image, args.kahan, args.use_han, args.use_clip)
 
     # load word2vec, wiki2vec model and add unk vector
     word2vec_cnt = KeyedVectors.load_word2vec_format(config['word2vec_cnt'])

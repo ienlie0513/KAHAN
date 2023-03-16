@@ -33,9 +33,11 @@ def get_data(data_dir, data_source):
     images = []
     labels = []
 
-    transform = transforms.Compose([
+    img_transform = transforms.Compose([
         transforms.PILToTensor()
     ])
+
+    img_count = 0
 
     for idx in range(df.id.shape[0]):
         # load news content
@@ -80,13 +82,16 @@ def get_data(data_dir, data_source):
             exit()
 
         if os.path.exists(path):
-            with Image.open(path) as img:
-                images.append(transform(img))
+            img_count += 1
+            with Image.open(path).convert('RGB') as img:
+                images.append(img_transform(img))
         else:
             images.append(None)
 
         # load labels
         labels.append(df.label[idx])
+
+    print(img_count)
 
     contents = np.asarray(contents)
     comments = np.asarray(comments)
@@ -97,16 +102,16 @@ def get_data(data_dir, data_source):
     return contents, comments, entities, images, labels
 
 
-def get_preprocessed_data(data_dir, data_source, model_type, exclude_with_no_image=False, only_newscontent=False, use_ihan=False, use_clip=False):
+def get_preprocessed_data(data_dir, data_source, model_type, exclude_with_no_image=False, kahan=False, use_ihan=False, use_clip=False):
     loaded_data = None
     try:
         path = ''
         if use_clip:
             path = '{}/{}/preprocessed_clip.pt'.format(data_dir, data_source)
-        elif only_newscontent and exclude_with_no_image:
-            path = '{}/{}/preprocessed_only_newscontent_exclude_with_no_image.pt'.format(data_dir, data_source)
-        elif only_newscontent:
-            path = '{}/{}/preprocessed_only_newscontent.pt'.format(data_dir, data_source)
+        elif kahan and exclude_with_no_image:
+            path = '{}/{}/preprocessed_kahan_exclude_with_no_image.pt'.format(data_dir, data_source)
+        elif kahan:
+            path = '{}/{}/preprocessed_kahan.pt'.format(data_dir, data_source)
         else:
             path = '{}/{}/preprocessed_{}.pt'.format(data_dir, data_source, model_type)
         loaded_data = torch.load(path)
@@ -122,7 +127,7 @@ def get_preprocessed_data(data_dir, data_source, model_type, exclude_with_no_ima
 
     for i in range(len(loaded_data['images'])):
         image_repr = loaded_data['images'][i]
-        if only_newscontent and exclude_with_no_image:
+        if kahan and exclude_with_no_image:
             contents.append(loaded_data['contents'][i])
             comments.append(loaded_data['comments'][i])
             entities.append(loaded_data['entities'][i])

@@ -23,7 +23,7 @@ import open_clip
 # convert entity into embed
 
 class Preprocess():
-    """
+    '''
         This class is for FakeNewsNet data
         it tokenize the news content and comments, convert each token into word index, padding into max length,
         get entity and claim embed, finally return the tensor of word index and label 
@@ -35,8 +35,8 @@ class Preprocess():
             M: number of subevents if count-based
             max_cmt: max number of comments in a subevent
             intervals: range of time index, for building time-based subevents
-    """
-    def __init__(self, contents, comments, entities, images, labels, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec, sb_type, img_embed_params, clip_embed_params, only_newscontent, exclude_with_no_images, use_clip, max_len=60, max_sent=30, max_ent=100, M=5, max_cmt=50, intervals=100):
+    '''
+    def __init__(self, contents, comments, entities, images, labels, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec, sb_type, img_embed_params, clip_embed_params, kahan, exclude_with_no_images, use_clip, max_len=60, max_sent=30, max_ent=100, M=5, max_cmt=50, intervals=100):
         self.contents = contents
         self.comments = comments
         self.entities = entities
@@ -60,7 +60,7 @@ class Preprocess():
         self.wiki2vec = wiki2vec
 
         self.img_embed_params = img_embed_params
-        self.only_newscontent = only_newscontent
+        self.kahan = kahan
         self.exclude_with_no_images = exclude_with_no_images
 
         self.use_clip = use_clip
@@ -71,7 +71,7 @@ class Preprocess():
         return len(self.labels)
     
     def _get_clip_entity_embed(self, ent, tokenizer, model):
-        ent = tokenizer(ent.replace("_", " "))
+        ent = tokenizer(ent.replace('_', ' '))
         with torch.no_grad():
             ent = model.encode_text(ent)
         return ent.numpy()
@@ -83,7 +83,7 @@ class Preprocess():
             return None
         clm_embed = []
         for clm in claims:
-            clm = clm.split(":")
+            clm = clm.split(':')
             clm = clm[1] if len(clm)>1 else clm[0]
 
             clm = tokenizer(clm)
@@ -122,8 +122,8 @@ class Preprocess():
 
     # convert entity into embed
     def _get_entity_embed(self, ent):
-        if self.wiki2vec.get_entity(ent.replace("_", " ")):
-            return self.wiki2vec.get_entity_vector(ent.replace("_", " "))
+        if self.wiki2vec.get_entity(ent.replace('_', ' ')):
+            return self.wiki2vec.get_entity_vector(ent.replace('_', ' '))
         else:
             return None
     
@@ -136,14 +136,14 @@ class Preprocess():
         clm_embed = []
         for clm in claims:
             # get wiki2vec
-            clm = clm.split(":")
+            clm = clm.split(':')
             clm = clm[1] if len(clm)>1 else clm[0]
             
             if self.wiki2vec.get_entity(clm):
                 clm_embed.append(self.wiki2vec.get_entity_vector(clm))
             else:
                 # get word2vec
-                token = clm.split(" ")
+                token = clm.split(' ')
                 token = [tk.lower() for tk in token if self.wiki2vec.get_word(tk.lower())]
                 if token:
                     clm_embed.extend([self.wiki2vec.get_word_vector(tk) for tk in token])
@@ -343,7 +343,7 @@ class Preprocess():
     # create a vector space representation of the image using clip
     def _get_image_vector_space_representation(self, image):
         image_features = None
-        if image is None or self.only_newscontent:
+        if image is None or self.kahan:
             image_features = torch.zeros(self.clip_embed_params['embedding_size'])
         else:
             image = self.clip_embed_params['preprocess'](image).unsqueeze(0)
@@ -354,7 +354,7 @@ class Preprocess():
     # create embedding of the PIL image object and return
     def _get_embeddings(self, image):
         embedding = None
-        if image is None or self.only_newscontent:
+        if image is None or self.kahan:
             embedding = torch.zeros(self.img_embed_params['embedding_size'])
         else:
             with torch.no_grad():
@@ -409,21 +409,21 @@ class Preprocess():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--platform", type=str, default="politifact")
-    parser.add_argument("--cnn", type=str, default="vgg19")
-    parser.add_argument("--only_newscontent", action='store_true')
-    parser.add_argument("--exclude_with_no_images", action='store_true')
-    parser.add_argument("--use_clip", action='store_true')
+    parser.add_argument('--platform', type=str, default='politifact')
+    parser.add_argument('--cnn', type=str, default='vgg19')
+    parser.add_argument('--kahan', action='store_true')
+    parser.add_argument('--exclude_with_no_images', action='store_true')
+    parser.add_argument('--use_clip', action='store_true')
     args = parser.parse_args()
 
     # load config
     config = None
-    if args.platform == "politifact":
-        config = json.load(open("./config_p.json"))
-    elif args.platform == "gossipcop":
-        config = json.load(open("./config_g.json"))
+    if args.platform.startswith('politifact'):
+        config = json.load(open('./config_p.json'))
+    elif args.platform == 'gossipcop':
+        config = json.load(open('./config_g.json'))
     else:
-        raise ValueError("Invalid platform argument")
+        raise ValueError('Invalid platform argument')
 
     # load data
     contents, comments, entities, images, labels = get_data(config['data_dir'], config['data_source'])
@@ -475,16 +475,16 @@ if __name__ == '__main__':
 
     # preprocess data
     preprocessor = Preprocess(contents, comments, entities, images, labels, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec,
-            sb_type=config['sb_type'], img_embed_params=img_embed_params, clip_embed_params=clip_embed_params, only_newscontent=args.only_newscontent, exclude_with_no_images=args.exclude_with_no_images, use_clip=args.use_clip, max_len=config['max_len'], max_sent=config['max_sent'], max_ent=config['max_ent'], M=config['M'], max_cmt=config['max_cmt'])
+            sb_type=config['sb_type'], img_embed_params=img_embed_params, clip_embed_params=clip_embed_params, kahan=args.kahan, exclude_with_no_images=args.exclude_with_no_images, use_clip=args.use_clip, max_len=config['max_len'], max_sent=config['max_sent'], max_ent=config['max_ent'], M=config['M'], max_cmt=config['max_cmt'])
     contents, comments, entities, images, labels = preprocessor.preprocess()
 
     # save data
     save_path = ''
 
-    if args.only_newscontent and args.exclude_with_no_images:
-        save_path = '{}/{}/preprocessed_only_newscontent_exclude_with_no_image.pt'.format(config['data_dir'], config['data_source'])
-    elif args.only_newscontent:
-        save_path = '{}/{}/preprocessed_only_newscontent.pt'.format(config['data_dir'], config['data_source'])
+    if args.kahan and args.exclude_with_no_images:
+        save_path = '{}/{}/preprocessed_kahan_exclude_with_no_image.pt'.format(config['data_dir'], config['data_source'])
+    elif args.kahan:
+        save_path = '{}/{}/preprocessed_kahan.pt'.format(config['data_dir'], config['data_source'])
     elif args.use_clip:
         save_path = '{}/{}/preprocessed_clip.pt'.format(config['data_dir'], config['data_source'])
     else:
