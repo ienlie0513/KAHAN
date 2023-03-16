@@ -62,20 +62,29 @@ def init_archive(config, model_type, downsample_method, fusion_method, hid, excl
     return log, img_dir, ckpt_dir
 
 if __name__ == '__main__':
-    config = json.load(open('./config_p.json'))
-    # config = json.load(open('./config_g.json'))
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--cnn', type=str, default='vgg19')
     parser.add_argument('--downsample', type=str, default='maxpooling')
     parser.add_argument('--fusion', type=str, default='cat')
     parser.add_argument('--hid', type=str, default=None)
+    parser.add_argument('--platform', type=str, default='politifact_v2')
     parser.add_argument('--exclude_with_no_image', action='store_true')
     parser.add_argument('--kahan', action='store_true')
-    parser.add_argument('--num_seeds', type=int, default=3)
+    parser.add_argument('--num_seeds', type=int, default=4)
+    parser.add_argument('--num_folds', type=int, default=3)
     parser.add_argument('--use_han', action='store_true')
     parser.add_argument('--use_clip', action='store_true')
     args = parser.parse_args()
+
+    # load config
+    config = None
+    if args.platform.startswith('politifact'):
+        config = json.load(open('./config_p.json'))
+    elif args.platform == 'gossipcop':
+        config = json.load(open('./config_g.json'))
+    else:
+        raise ValueError('Invalid platform argument')
 
     downsample_params = {
         'method': args.downsample,
