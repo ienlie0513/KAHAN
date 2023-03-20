@@ -346,7 +346,8 @@ class Preprocess():
         if image is None or self.kahan:
             image_features = torch.zeros(self.clip_embed_params['embedding_size'])
         else:
-            image = self.clip_embed_params['preprocess'](image).unsqueeze(0)
+            img_as_pil = self.clip_embed_params['transform'](image)
+            image = self.clip_embed_params['preprocess'](img_as_pil).unsqueeze(0)
             with torch.no_grad():
                 image_features = self.clip_embed_params['model'].encode_image(image).squeeze(0)
         return image_features

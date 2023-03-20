@@ -21,7 +21,8 @@ def get_time_index(file_content, intervals):
     utc_value = {}
     for comment in file_content.values():
         for c in comment:
-            utc_value[c['created_at']] = None
+            if c['text']:
+                utc_value[c['created_at']] = None
     # sort utc_value dict by key (timestamp)
     utc_value = dict(sorted(utc_value.items(), key=lambda item: item[0]))
     # get time index
@@ -43,16 +44,17 @@ def get_comments(file_path, intervals):
             time_index = get_time_index(file_content, intervals)
             for comment in file_content.values():
                 for c in comment:
-                    # remove <> and :: from text
-                    text = re.sub(r'<>+', '', c['text']) 
-                    text = re.sub(r'::+', '', text)
-                    # Add comment texted followed by its timestamp
-                    comments += text + '<>' + str(time_index[c['created_at']]) + '::'
+                    if c['text']:
+                        # remove <> and :: from text
+                        text = re.sub(r'<>+', '', c['text']) 
+                        text = re.sub(r'::+', '', text)
+                        # Add comment texted followed by its timestamp
+                        comments += text + '<>' + str(time_index[c['created_at']]) + '::'
     except Exception as e:
         print('Error: ', e)
     finally:
         # remove mentions and urls
-        comments = re.sub(r'@\w+', '', comments)
+        # comments = re.sub(r'@\w+', '', comments)
         comments = re.sub(r'http\S+', '', comments)
         # remove trailing '::'
         comments = comments[:-2]
