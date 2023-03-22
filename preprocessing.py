@@ -1,16 +1,18 @@
 import torch
 import numpy as np
+import open_clip
 
-def clip_ent_claims_encoder(ent_clms, model, tokenizer):
+def clip_ent_claims_encoder(ent_clms, tokenizer, model):
     text = tokenizer(ent_clms)
+    text_features = None
 
     with torch.no_grad():
         text_features = model.encode_text(text)
 
-        ent_embed = text_features[0].unsqueeze(0).numpy()
-        clm_embed = torch.mean(text_features[1:], dim=0, keepdim=True).numpy()
+    ent_embed = text_features[0].unsqueeze(0)
+    clm_embed = torch.mean(text_features[1:], dim=0, keepdim=True)
 
-        return np.concatenate((ent_embed, clm_embed), axis=None)
+    return np.concatenate((ent_embed, clm_embed), axis=None)
 
 if __name__ == '__main__':
     import re
@@ -33,8 +35,6 @@ if __name__ == '__main__':
     from util.datahelper import get_data, get_entity_claim
 
     from tqdm import tqdm
-
-    import open_clip
 
     class Preprocess():
         '''
@@ -79,45 +79,47 @@ if __name__ == '__main__':
 
             self.use_clip = use_clip
             self.clip_embed_params = clip_embed_params
+
+            self.max_clip_ent = 5
+            self.max_clip_clms = 10
             
 
         def __len__(self):
             return len(self.labels)
             
-        def _clip_knowledge_preprocess(self, ents, tokenizer, model, embedding_size=512):
+        def _clip_knowledge_preprocess(self, ents, tokenizer, model, pool, embedding_size=512):
             ent_vec = []
             ent_clms = []
 
-            for i, entity in enumerate(ents):
-                if i >= self.max_ent:
-                    break
-
+            num_ent_found = 0
+            for entity in ents:
                 if entity not in claim_dict:
                     continue
+                num_ent_found += 1
                 
                 clms = claim_dict[entity]
-                
                 for i, clm in enumerate(clms):
                     clm = clm.split(':')
                     clm = clm[1] if len(clm)>1 else clm[0]
                     clms[i] = clm
-
+                
+                clms = clms[:self.max_clip_clms]
                 ent_clms.append([entity.replace('_', ' ')] + clms)
 
-            with Pool(os.cpu_count()) as p:
-                ent_vec = p.starmap(clip_ent_claims_encoder, [(ent_clm, model, tokenizer) for ent_clm in ent_clms])
+            ent_clms = ent_clms[:self.max_clip_ent]
+            ent_vec = pool.starmap(clip_ent_claims_encoder, [(ent_clm, tokenizer, model) for ent_clm in ent_clms])
 
-            lk = len(ent_vec) if len(ent_vec)<self.max_ent else self.max_ent
+            lk = len(ent_vec) if len(ent_vec)<self.max_clip_ent else self.max_clip_ent
             lk = lk if lk>0 else 1
             #print('lk: {}'.format(lk))
             
-            ent_vec = ent_vec[:self.max_ent]
+            ent_vec = ent_vec[:self.max_clip_ent]
             #print('ent_vec: {}'.format(len(ent_vec)))
             if ent_vec:
-                ent_vec = np.pad(ent_vec, ((0, self.max_ent-len(ent_vec)),(0, 0)))
+                ent_vec = np.pad(ent_vec, ((0, self.max_clip_ent-len(ent_vec)),(0, 0)))
                 #print('ent_vec: {}'.format(ent_vec.shape))
             else:
-                ent_vec = np.full((self.max_ent, embedding_size), 0.0)
+                ent_vec = np.full((self.max_clip_ent, embedding_size), 0.0)
                 ent_vec = np.concatenate((ent_vec, ent_vec), axis=1)
 
             #print('ent_vec: {}, lk: {}'.format(ent_vec.shape, lk))
@@ -390,7 +392,7 @@ if __name__ == '__main__':
                 content_vec, ln, ls = self._news_content_preprocess(content)
                 comment_vec, le, lsb, lc = self._build_subevents(comment)
                 ent_vec, lk = self._knowledge_preprocess(entity)
-                clip_ent_vec, clip_lk = self._clip_knowledge_preprocess(entity, self.clip_embed_params['tokenizer'], self.clip_embed_params['model'], self.clip_embed_params['embedding_size'])
+                clip_ent_vec, clip_lk = self._clip_knowledge_preprocess(entity, self.clip_embed_params['tokenizer'], self.clip_embed_params['model'], self.clip_embed_params['pool'], self.clip_embed_params['embedding_size'])
                 img_vec = self._get_image_vector_space_representation(image) if self.use_clip else self._get_embeddings(image)
                 
                 if self.exclude_with_no_images:
@@ -473,13 +475,17 @@ if __name__ == '__main__':
     transform = transforms.Compose([
         transforms.ToPILImage()
     ])
+    pool = Pool(5)
     # add to config
-    clip_embed_params = {'model': model, 'transform': transform, 'preprocess': preprocess, 'tokenizer': tokenizer, 'embedding_size': 512}
+    clip_embed_params = {'model': model, 'transform': transform, 'preprocess': preprocess, 'tokenizer': tokenizer, 'pool': pool, 'embedding_size': 512}
 
     # preprocess data
     preprocessor = Preprocess(contents, comments, entities, images, labels, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec,
             sb_type=config['sb_type'], img_embed_params=img_embed_params, clip_embed_params=clip_embed_params, kahan=args.kahan, exclude_with_no_images=args.exclude_with_no_images, use_clip=args.use_clip, max_len=config['max_len'], max_sent=config['max_sent'], max_ent=config['max_ent'], M=config['M'], max_cmt=config['max_cmt'])
     contents, comments, entities, images, labels = preprocessor.preprocess()
+
+    pool.close()
+    pool.join()
 
     # save data
     save_path = ''

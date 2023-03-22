@@ -310,7 +310,7 @@ class CHAN(nn.Module):
     def forward(self, input, le, lsb, lc, ent_embs, lk):
         # cat all comments in the batch
         input, lc = self._reorder_input(input, le, lsb, lc)
-        #print('input: {} lc: {} '.format(input.size(), len(lc)))
+        print('input: {} lc: {} lsb: {} le: {} '.format(input.size(), len(lc), len(lsb), le))
 
         # (# of comments in the batch, max_length, emb_size)
         emb_w = self.embedding(input)

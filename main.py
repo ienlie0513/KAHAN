@@ -131,6 +131,8 @@ if __name__ == '__main__':
             i_train, i_val = images[train_idx], images[test_idx]
             y_train, y_val = labels[train_idx], labels[test_idx]
 
+            print(train_idx)
+
             trainset = KaDataset(x_train, c_train, e_train, i_train, y_train)
             validset = KaDataset(x_val, c_val, e_val, i_val, y_val)
 
