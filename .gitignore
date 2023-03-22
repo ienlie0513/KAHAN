@@ -28,6 +28,7 @@ data/gossipcop
 data/*
 
 openai_clip.py
+multi_processing.py
 
 *.pt
 
