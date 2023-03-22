@@ -88,7 +88,10 @@ if __name__ == '__main__':
             ent_vec = []
             ent_clms = []
 
-            for entity in ents:
+            for i, entity in enumerate(ents):
+                if i >= self.max_ent:
+                    break
+
                 if entity not in claim_dict:
                     continue
                 
