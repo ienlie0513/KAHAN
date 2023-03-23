@@ -88,7 +88,7 @@ if __name__ == '__main__':
             return len(self.labels)
             
         def _clip_knowledge_preprocess(self, ents, tokenizer, model, pool, embedding_size=512):
-            ent_vec = []
+            clip_ent_vec = []
             ent_clms = []
 
             num_ent_found = 0
@@ -107,24 +107,24 @@ if __name__ == '__main__':
                 ent_clms.append([entity.replace('_', ' ')] + clms)
 
             ent_clms = ent_clms[:self.max_clip_ent]
-            ent_vec = pool.starmap(clip_ent_claims_encoder, [(ent_clm, tokenizer, model) for ent_clm in ent_clms])
+            clip_ent_vec = pool.starmap(clip_ent_claims_encoder, [(ent_clm, tokenizer, model) for ent_clm in ent_clms])
 
-            lk = len(ent_vec) if len(ent_vec)<self.max_clip_ent else self.max_clip_ent
-            lk = lk if lk>0 else 1
-            #print('lk: {}'.format(lk))
+            clip_lk = len(clip_ent_vec) if len(clip_ent_vec)<self.max_clip_ent else self.max_clip_ent
+            clip_lk = clip_lk if clip_lk>0 else 1
+            #print('clip_lk: {}'.format(clip_lk))
             
-            ent_vec = ent_vec[:self.max_clip_ent]
-            #print('ent_vec: {}'.format(len(ent_vec)))
-            if ent_vec:
-                ent_vec = np.pad(ent_vec, ((0, self.max_clip_ent-len(ent_vec)),(0, 0)))
-                #print('ent_vec: {}'.format(ent_vec.shape))
+            clip_ent_vec = clip_ent_vec[:self.max_clip_ent]
+            #print('clip_ent_vec: {}'.format(len(clip_ent_vec)))
+            if clip_ent_vec:
+                clip_ent_vec = np.pad(clip_ent_vec, ((0, self.max_clip_ent-len(clip_ent_vec)),(0, 0)))
+                #print('clip_ent_vec: {}'.format(clip_ent_vec.shape))
             else:
-                ent_vec = np.full((self.max_clip_ent, embedding_size), 0.0)
-                ent_vec = np.concatenate((ent_vec, ent_vec), axis=1)
+                clip_ent_vec = np.full((self.max_clip_ent, embedding_size), 0.0)
+                clip_ent_vec = np.concatenate((clip_ent_vec, clip_ent_vec), axis=1)
 
-            #print('ent_vec: {}, lk: {}'.format(ent_vec.shape, lk))
+            #print('clip_ent_vec: {}, clip_lk: {}'.format(clip_ent_vec.shape, clip_lk))
 
-            return ent_vec, lk
+            return clip_ent_vec, clip_lk
 
         # convert entity into embed
         def _get_entity_embed(self, ent):
@@ -259,7 +259,6 @@ if __name__ == '__main__':
         # given comments of the subevent, return preprocessed comments, (max_cmt, max_len)
         def _comment_preprocess(self, comments):
             # if empty subevent
-            ##print('comments: {}'.format(comments))
             if comments == []:
                 return np.full((self.max_cmt, self.max_len), self.word2vec_cmt.key_to_index['_pad_'], dtype=int), 0, [0]*self.max_cmt
 
@@ -347,7 +346,7 @@ if __name__ == '__main__':
             return word_vec, le, lsb, lc
         
         # create a vector space representation of the image using clip
-        def _get_image_vector_space_representation(self, image):
+        def _get_clip_img_embed(self, image):
             image_features = None
             if image is None or self.kahan:
                 image_features = torch.zeros(self.clip_embed_params['embedding_size'])
@@ -359,7 +358,7 @@ if __name__ == '__main__':
             return image_features
 
         # create embedding of the PIL image object and return
-        def _get_embeddings(self, image):
+        def _get_img_embed(self, image):
             embedding = None
             if image is None or self.kahan:
                 embedding = torch.zeros(self.img_embed_params['embedding_size'])
@@ -392,8 +391,17 @@ if __name__ == '__main__':
                 content_vec, ln, ls = self._news_content_preprocess(content)
                 comment_vec, le, lsb, lc = self._build_subevents(comment)
                 ent_vec, lk = self._knowledge_preprocess(entity)
-                clip_ent_vec, clip_lk = self._clip_knowledge_preprocess(entity, self.clip_embed_params['tokenizer'], self.clip_embed_params['model'], self.clip_embed_params['pool'], self.clip_embed_params['embedding_size'])
-                img_vec = self._get_image_vector_space_representation(image) if self.use_clip else self._get_embeddings(image)
+
+                clip_ent_vec, clip_lk = None, None
+                if self.use_clip:
+                    clip_ent_vec, clip_lk = self._clip_knowledge_preprocess(entity, self.clip_embed_params['tokenizer'], self.clip_embed_params['model'], self.clip_embed_params['pool'], self.clip_embed_params['embedding_size']) 
+                else:
+                    # fill with zeros if not using clip to maintain consistency
+                    clip_ent_vec = np.full((self.max_clip_ent, self.clip_embed_params['embedding_size']), 0.0)
+                    clip_ent_vec = np.concatenate((clip_ent_vec, clip_ent_vec), axis=1)
+                    clip_lk = self.max_clip_ent
+
+                img_vec = self._get_clip_img_embed(image) if self.use_clip else self._get_img_embed(image)
                 
                 if self.exclude_with_no_images:
                     if image is not None:
@@ -402,16 +410,16 @@ if __name__ == '__main__':
                         entities.append((torch.tensor(ent_vec), torch.tensor(lk)))
                         clip_entities.append((torch.tensor(clip_ent_vec), torch.tensor(clip_lk)))
                         images.append(img_vec)
-                        labels.append(torch.tensor(label))
+                        labels.append(torch.tensor(label))       
                 else:
                     contents.append((torch.tensor(content_vec), torch.tensor(ln), torch.tensor(ls)))
                     comments.append((torch.tensor(comment_vec), torch.tensor(le), torch.tensor(lsb), torch.tensor(lc)))
                     entities.append((torch.tensor(ent_vec), torch.tensor(lk)))
                     clip_entities.append((torch.tensor(clip_ent_vec), torch.tensor(clip_lk)))
                     images.append(img_vec)
-                    labels.append(torch.tensor(label))
-
-            return contents, comments, entities, images, labels
+                    labels.append(torch.tensor(label))            
+            
+            return contents, comments, entities, clip_entities, images, labels
         
     parser = argparse.ArgumentParser()
     parser.add_argument('--platform', type=str, default='politifact')
@@ -482,7 +490,8 @@ if __name__ == '__main__':
     # preprocess data
     preprocessor = Preprocess(contents, comments, entities, images, labels, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec,
             sb_type=config['sb_type'], img_embed_params=img_embed_params, clip_embed_params=clip_embed_params, kahan=args.kahan, exclude_with_no_images=args.exclude_with_no_images, use_clip=args.use_clip, max_len=config['max_len'], max_sent=config['max_sent'], max_ent=config['max_ent'], M=config['M'], max_cmt=config['max_cmt'])
-    contents, comments, entities, images, labels = preprocessor.preprocess()
+    
+    contents, comments, entities, clip_entities, images, labels = preprocessor.preprocess()
 
     pool.close()
     pool.join()
@@ -503,7 +512,8 @@ if __name__ == '__main__':
         'contents': contents,
         'comments': comments,
         'entities': entities,
+        'clip_entities': clip_entities,
         'images': images,
-        'labels': labels
+        'labels': labels,
     }, save_path)
 

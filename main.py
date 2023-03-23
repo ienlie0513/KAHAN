@@ -96,8 +96,8 @@ if __name__ == '__main__':
     log, img_dir, ckpt_dir = init_archive(config, args.cnn, args.downsample, args.fusion, args.hid, args.exclude_with_no_image, args.kahan, args.use_clip)
 
     # load data
-    contents, comments, entities, images, labels = get_preprocessed_data(config['data_dir'], config['data_source'], args.cnn, args.exclude_with_no_image, args.kahan, args.use_han, args.use_clip)
-
+    contents, comments, entities, clip_entities, images, labels = get_preprocessed_data(config['data_dir'], config['data_source'], args.cnn, args.exclude_with_no_image, args.kahan, args.use_han, args.use_clip)
+    
     # load word2vec, wiki2vec model and add unk vector
     word2vec_cnt = KeyedVectors.load_word2vec_format(config['word2vec_cnt'])
     word2vec_cnt.add_vector('_unk_', np.average(word2vec_cnt.vectors, axis=0))
@@ -128,13 +128,14 @@ if __name__ == '__main__':
             x_train, x_val = contents[train_idx], contents[test_idx]
             c_train, c_val = comments[train_idx], comments[test_idx]
             e_train, e_val = entities[train_idx], entities[test_idx]
+            ce_train, ce_val = clip_entities[train_idx], clip_entities[test_idx]
             i_train, i_val = images[train_idx], images[test_idx]
             y_train, y_val = labels[train_idx], labels[test_idx]
 
-            print(train_idx)
+            print('train size: %d, val size: %d' % (len(y_train), len(y_val)))
 
-            trainset = KaDataset(x_train, c_train, e_train, i_train, y_train)
-            validset = KaDataset(x_val, c_val, e_val, i_val, y_val)
+            trainset = KaDataset(x_train, c_train, e_train, ce_train, i_train, y_train)
+            validset = KaDataset(x_val, c_val, e_val, ce_train, i_val, y_val)
 
             # training
             model = IKAHAN(config['num_class'], word2vec_cnt, word2vec_cmt, downsample_params, args.fusion, args.use_han, args.use_clip, config['word2vec_dim'], config['hid_size'], max_sent=config['max_sent'], dropout=config['dropout'])

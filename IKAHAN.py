@@ -310,7 +310,6 @@ class CHAN(nn.Module):
     def forward(self, input, le, lsb, lc, ent_embs, lk):
         # cat all comments in the batch
         input, lc = self._reorder_input(input, le, lsb, lc)
-        print('input: {} lc: {} lsb: {} le: {} '.format(input.size(), len(lc), len(lsb), le))
 
         # (# of comments in the batch, max_length, emb_size)
         emb_w = self.embedding(input)
@@ -372,12 +371,13 @@ class IKAHAN(nn.Module):
         self.news = NHAN(word2vec_cnt, emb_size, hid_size, max_sent, dropout)
         self.comment = CHAN(word2vec_cmt, emb_size, hid_size, dropout)
         self.image = IHAN(emb_size, hid_size, dropout) if use_han else Downsample(hid_size*2, **downsample_params)
+        self.clip_img_att = None
 
         self.fusion_method = fusion_method
         self.use_han = use_han
         self.use_clip = use_clip
 
-        self.lin_cat = nn.Linear(hid_size*4 + 768, hid_size*2) if use_clip else nn.Linear(hid_size*6, hid_size*2)
+        self.lin_cat = nn.Linear(hid_size*4 + 512, hid_size*2) if use_clip else nn.Linear(hid_size*6, hid_size*2)
         self.lin_out = nn.Linear(hid_size*2, num_class)
         self.relu = nn.ReLU()
 
@@ -393,15 +393,18 @@ class IKAHAN(nn.Module):
 
         return out, n_ent_attn, c_ent_attn
 
-    def forward(self, cnt_input, cmt_input, ent_input, img_input):
-        # (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk)
+    def forward(self, cnt_input, cmt_input, ent_input, clip_ent_input, img_input):
+        # (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), (clip_ent, lk), img
         content_vec,_ = self.news(*cnt_input, *ent_input)
         comment_vec,_ = self.comment(*cmt_input, *ent_input) if torch.count_nonzero(cmt_input[-1]) > 0 else (torch.ones(cmt_input[0].size(0), 200), torch.tensor([]))
         image_vec = None
+
         if self.use_han:
             image_vec = self.image(img_input, *ent_input)
         if self.use_clip:
+            # TODO: attention using clip_ent_input
             image_vec = img_input
+            #image_vec = self.clip_img_att(img_input, *clip_ent_input)
         else:
             image_vec = self.image(img_input)
 
@@ -427,17 +430,18 @@ class IKAHAN(nn.Module):
 
 # model specific train function
 def train(input_tensor, target_tensor, model, optimizer, criterion, device):
-    (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), img = input_tensor
+    (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), (clip_ent, clip_lk), img = input_tensor
     cnt = cnt.to(device)
     cmt = cmt.to(device)
     ent = ent.to(device)
+    clip_ent = clip_ent.to(device)
     img = img.to(device)
     target_tensor = target_tensor.to(device)
 
     model.train()
     optimizer.zero_grad()
     
-    output = model((cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), img)
+    output = model((cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), (clip_ent, clip_lk), img)
 
     loss = criterion(output, target_tensor)
 
@@ -462,14 +466,15 @@ def evaluate(model, testset, device, batch_size=32):
     model.eval()
     with torch.no_grad():    
         for input_tensor, target_tensor in testloader:
-            (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), img = input_tensor
+            (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), (clip_ent, clip_lk), img = input_tensor
             cnt = cnt.to(device)
             cmt = cmt.to(device)
             ent = ent.to(device)
+            clip_ent = clip_ent.to(device)
             img = img.to(device)
             target_tensor = target_tensor.to(device)
 
-            output = model((cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), img)
+            output = model((cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), (clip_ent, clip_lk), img)
 
             loss = criterion(output, target_tensor)
             loss_total += loss.item()*len(input_tensor)

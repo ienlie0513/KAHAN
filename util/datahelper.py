@@ -117,11 +117,11 @@ def get_preprocessed_data(data_dir, data_source, model_type, exclude_with_no_ima
         loaded_data = torch.load(path)
     except:
         print ("Preprocessed data not found. Please run preprocess.py first.")
-        exit()
 
     contents = []
     comments = []
     entities = []
+    clip_entities = []
     images = []
     labels = []
 
@@ -133,25 +133,30 @@ def get_preprocessed_data(data_dir, data_source, model_type, exclude_with_no_ima
             entities.append(loaded_data['entities'][i])
             images.append(image_repr.numpy())
             labels.append(loaded_data['labels'][i])
+            clip_entities.append(loaded_data['clip_entities'][i])
+
         elif exclude_with_no_image:
             if torch.sum(image_repr) != 0:
                 contents.append(loaded_data['contents'][i])
                 comments.append(loaded_data['comments'][i])
                 entities.append(loaded_data['entities'][i])
+                clip_entities.append(loaded_data['clip_entities'][i])
                 images.append(image_repr.numpy())
                 labels.append(loaded_data['labels'][i])
         else:
             contents.append(loaded_data['contents'][i])
             comments.append(loaded_data['comments'][i])
             entities.append(loaded_data['entities'][i])
+            clip_entities.append(loaded_data['clip_entities'][i])
             images.append(image_repr.numpy())
             labels.append(loaded_data['labels'][i])
-
+                
     print('length of contents: ', len(contents))
     
     contents = np.asarray(contents)
     comments = np.asarray(comments)
     entities = np.asarray(entities)
+    clip_entities = np.asarray(clip_entities)
     images = np.asarray(images)
     labels = np.asarray(labels)
 
@@ -165,17 +170,18 @@ def get_preprocessed_data(data_dir, data_source, model_type, exclude_with_no_ima
             ihan_images[i] = split_image
         images = ihan_images
 
-    return contents, comments, entities, images, labels
+    return contents, comments, entities, clip_entities, images, labels
 
 
 class KaDataset(data.Dataset):
     """
         This Dataset class is for FakeNewsNet data
     """
-    def __init__(self, contents, comments, entities, images, labels):
+    def __init__(self, contents, comments, entities, clip_entities, images, labels):
         self.contents = contents
         self.comments = comments
         self.entities = entities
+        self.clip_entities = clip_entities
         self.images = images
         self.labels = labels
 
@@ -187,14 +193,16 @@ class KaDataset(data.Dataset):
         content = self.contents[index]
         comment = self.comments[index]
         entity = self.entities[index]
+        clip_entity = self.clip_entities[index]
         image = self.images[index]
         label = self.labels[index] 
 
         cnt, ln, ls = content
         cmt, le, lsb, lc = comment
         ent, lk = entity
+        clip_ent, clip_lk = clip_entity
         
-        return ((cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), image), label
+        return ((cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), (clip_ent, clip_lk), image), label
 
 
 if __name__ == '__main__':
