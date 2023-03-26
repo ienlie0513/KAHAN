@@ -9,6 +9,8 @@
     "max_len": 120,
     "max_sent": 50,
     "max_ent": 100,
+    "max_clip_clms": 25,
+    "max_clip_ent": 10,
     "intervals": 100,
     "M": 5,
     "max_cmt": 50, 

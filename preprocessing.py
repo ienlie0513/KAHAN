@@ -56,7 +56,7 @@ if __name__ == '__main__':
                 max_cmt: max number of comments in a subevent
                 intervals: range of time index, for building time-based subevents
         '''
-        def __init__(self, contents, comments, entities, images, labels, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec, sb_type, img_embed_params, clip_embed_params, kahan, exclude_with_no_images, use_clip, max_len=60, max_sent=30, max_ent=100, M=5, max_cmt=50, intervals=100):
+        def __init__(self, contents, comments, entities, images, labels, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec, sb_type, img_embed_params, clip_embed_params, kahan, exclude_with_no_images, use_clip, max_clip_ent=10, max_clip_clms=25,  max_len=60, max_sent=30, max_ent=100, M=5, max_cmt=50, intervals=100):
             self.contents = contents
             self.comments = comments
             self.entities = entities
@@ -86,8 +86,8 @@ if __name__ == '__main__':
             self.use_clip = use_clip
             self.clip_embed_params = clip_embed_params
 
-            self.max_clip_ent = 5
-            self.max_clip_clms = 10
+            self.max_clip_ent = max_clip_ent
+            self.max_clip_clms = max_clip_clms
             
 
         def __len__(self):
@@ -505,7 +505,7 @@ if __name__ == '__main__':
 
     # preprocess data
     preprocessor = Preprocess(contents, comments, entities, images, labels, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec,
-            sb_type=config['sb_type'], img_embed_params=img_embed_params, clip_embed_params=clip_embed_params, kahan=args.kahan, exclude_with_no_images=args.exclude_with_no_images, use_clip=args.use_clip, max_len=config['max_len'], max_sent=config['max_sent'], max_ent=config['max_ent'], M=config['M'], max_cmt=config['max_cmt'])
+            sb_type=config['sb_type'], img_embed_params=img_embed_params, clip_embed_params=clip_embed_params, kahan=args.kahan, exclude_with_no_images=args.exclude_with_no_images, use_clip=args.use_clip, max_len=config['max_len'], max_sent=config['max_sent'], max_ent=config['max_ent'], M=config['M'], max_cmt=config['max_cmt'], max_clip_ent=config['max_clip_ent'], max_clip_clms=config['max_clip_clms'])
     
     contents, comments, entities, clip_entities, images, labels = preprocessor.preprocess()
 
