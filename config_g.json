@@ -1,7 +1,7 @@
 {
     "num_class": 2,
-    "ep": 50,
-    "batch_size": 32,
+    "ep": 20,
+    "batch_size": 16,
     "hid_size": 100,
     "lr": 1e-3,
     "weight_decay": 1e-4,
@@ -26,6 +26,10 @@
         "resnet50_embed_size": 100352,
         "vgg19_embed_size": 25088,
         "resnet50_downsample_kernel_size": 500,
-        "vgg19_downsample_kernel_size": 125
+        "vgg19_downsample_kernel_size": 125,
+        "clip_model": "ViT-B-32-quickgelu",
+        "clip_tokenizer": "ViT-B-32-quickgelu",
+        "clip_pretrained": "laion400m_e32",
+        "clip_embed_size": 512
     }
 }

@@ -38,9 +38,24 @@ class DeepFC(nn.Module):
     def forward(self, x):
         x = self.deepfc(x)
         return x
+    
+class ImageAttention(nn.Module):
+    def __init__(self, embed_size=512, num_heads=4):
+        super(ImageAttention, self).__init__()
+        self.attn = nn.MultiheadAttention(embed_size, num_heads=num_heads)
+
+    def forward(self, img_input, ent_vec, clm_vec, lk):
+        # mask
+        idxes = torch.arange(0, ent_vec.size(1), out=ent_vec.data.new(ent_vec.size(1))).unsqueeze(1)
+        mask = (idxes>=lk.unsqueeze(0).to(idxes.device)).t() # (batch, max_ent)
+
+        # add dimension for multihead attention
+        img_input = img_input.unsqueeze(1)
+
+        attn_output, _ = self.attn(img_input.permute(1, 0, 2), ent_vec.float().permute(1, 0, 2), clm_vec.float().permute(1, 0, 2), key_padding_mask=mask)
+        return attn_output.permute(1, 0, 2).squeeze(1)
 
 class EmbedAttention(nn.Module):
-
     def __init__(self, att_size):
         super(EmbedAttention, self).__init__()
         self.attn = nn.Linear(att_size, 1)
@@ -365,19 +380,20 @@ class Downsample(nn.Module):
 
 class IKAHAN(nn.Module):
 
-    def __init__(self, num_class, word2vec_cnt, word2vec_cmt, downsample_params, fusion_method, use_han=False, use_clip=False, emb_size=100, hid_size=100, max_sent=50, dropout=0.3):
+    def __init__(self, num_class, word2vec_cnt, word2vec_cmt, downsample_params, fusion_method, use_han=False, use_clip=False, img_ent_att=False, clip_emb_size=512, emb_size=100, hid_size=100, max_sent=50, dropout=0.3):
         super(IKAHAN, self).__init__()
 
         self.news = NHAN(word2vec_cnt, emb_size, hid_size, max_sent, dropout)
         self.comment = CHAN(word2vec_cmt, emb_size, hid_size, dropout)
         self.image = IHAN(emb_size, hid_size, dropout) if use_han else Downsample(hid_size*2, **downsample_params)
-        self.clip_img_att = None
+        self.img_att = ImageAttention(clip_emb_size, 4)
 
         self.fusion_method = fusion_method
         self.use_han = use_han
         self.use_clip = use_clip
+        self.img_ent_att = img_ent_att
 
-        self.lin_cat = nn.Linear(hid_size*4 + 512, hid_size*2) if use_clip else nn.Linear(hid_size*6, hid_size*2)
+        self.lin_cat = nn.Linear(hid_size*4 + clip_emb_size, hid_size*2) if use_clip else nn.Linear(hid_size*6, hid_size*2)
         self.lin_out = nn.Linear(hid_size*2, num_class)
         self.relu = nn.ReLU()
 
@@ -402,9 +418,10 @@ class IKAHAN(nn.Module):
         if self.use_han:
             image_vec = self.image(img_input, *ent_input)
         if self.use_clip:
-            # TODO: attention using clip_ent_input
-            image_vec = img_input
-            #image_vec = self.clip_img_att(img_input, *clip_ent_input)
+            if self.img_ent_att:
+                image_vec = self.img_att(img_input, *clip_ent_input)
+            else:
+                image_vec = img_input
         else:
             image_vec = self.image(img_input)
 
@@ -430,18 +447,20 @@ class IKAHAN(nn.Module):
 
 # model specific train function
 def train(input_tensor, target_tensor, model, optimizer, criterion, device):
-    (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), (clip_ent, clip_lk), img = input_tensor
+    (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), (clip_ent, clip_clm, clip_lk), img = input_tensor
+
     cnt = cnt.to(device)
     cmt = cmt.to(device)
     ent = ent.to(device)
     clip_ent = clip_ent.to(device)
+    clip_clm = clip_clm.to(device)
     img = img.to(device)
     target_tensor = target_tensor.to(device)
 
     model.train()
     optimizer.zero_grad()
     
-    output = model((cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), (clip_ent, clip_lk), img)
+    output = model((cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), (clip_ent, clip_clm, clip_lk), img)
 
     loss = criterion(output, target_tensor)
 
@@ -466,15 +485,16 @@ def evaluate(model, testset, device, batch_size=32):
     model.eval()
     with torch.no_grad():    
         for input_tensor, target_tensor in testloader:
-            (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), (clip_ent, clip_lk), img = input_tensor
+            (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), (clip_ent, clip_clm, clip_lk), img = input_tensor
             cnt = cnt.to(device)
             cmt = cmt.to(device)
             ent = ent.to(device)
             clip_ent = clip_ent.to(device)
+            clip_clm = clip_clm.to(device)
             img = img.to(device)
             target_tensor = target_tensor.to(device)
 
-            output = model((cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), (clip_ent, clip_lk), img)
+            output = model((cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), (clip_ent, clip_clm, clip_lk), img)
 
             loss = criterion(output, target_tensor)
             loss_total += loss.item()*len(input_tensor)

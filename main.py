@@ -75,6 +75,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_folds', type=int, default=3)
     parser.add_argument('--use_han', action='store_true')
     parser.add_argument('--use_clip', action='store_true')
+    parser.add_argument('--img_ent_att', action='store_true')
     args = parser.parse_args()
 
     # load config
@@ -138,14 +139,14 @@ if __name__ == '__main__':
             validset = KaDataset(x_val, c_val, e_val, ce_train, i_val, y_val)
 
             # training
-            model = IKAHAN(config['num_class'], word2vec_cnt, word2vec_cmt, downsample_params, args.fusion, args.use_han, args.use_clip, config['word2vec_dim'], config['hid_size'], max_sent=config['max_sent'], dropout=config['dropout'])
+            model = IKAHAN(config['num_class'], word2vec_cnt, word2vec_cmt, downsample_params, args.fusion, args.use_han, args.use_clip, args.img_ent_att, config['image_preprocessing']['clip_embed_size'], config['word2vec_dim'], config['hid_size'], max_sent=config['max_sent'], dropout=config['dropout'])
             train_accs, test_accs, train_losses, test_losses, model_name = trainIters(model, trainset, validset, train, evaluate,
                 epochs=config['ep'], learning_rate=config['lr'], batch_size=config['batch_size'], weight_decay=config['weight_decay'],
                 save_info=(fold, ckpt_dir), print_every=config['print_every'], device=config['device'], log=log)
             show_result(train_accs, test_accs, train_losses, test_losses, save=(fold, img_dir))
 
             # evaluate
-            model = IKAHAN(config['num_class'], word2vec_cnt, word2vec_cmt, downsample_params, args.fusion, args.use_han, args.use_clip, config['word2vec_dim'], config['hid_size'], max_sent=config['max_sent'], dropout=config['dropout']).to(config['device'])
+            model = IKAHAN(config['num_class'], word2vec_cnt, word2vec_cmt, downsample_params, args.fusion, args.use_han, args.use_clip, args.img_ent_att, config['image_preprocessing']['clip_embed_size'], config['word2vec_dim'], config['hid_size'], max_sent=config['max_sent'], dropout=config['dropout']).to(config['device'])
             model.load_state_dict(torch.load(model_name))
             _, acc, predicts, targets = evaluate(model, validset, device=config['device'])
             acc, precision, recall, microf1, macrof1 = calculate_metrics(acc, targets, predicts, log=log)

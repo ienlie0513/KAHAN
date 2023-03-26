@@ -127,15 +127,8 @@ def get_preprocessed_data(data_dir, data_source, model_type, exclude_with_no_ima
 
     for i in range(len(loaded_data['images'])):
         image_repr = loaded_data['images'][i]
-        if kahan and exclude_with_no_image:
-            contents.append(loaded_data['contents'][i])
-            comments.append(loaded_data['comments'][i])
-            entities.append(loaded_data['entities'][i])
-            images.append(image_repr.numpy())
-            labels.append(loaded_data['labels'][i])
-            clip_entities.append(loaded_data['clip_entities'][i])
 
-        elif exclude_with_no_image:
+        if exclude_with_no_image:
             if torch.sum(image_repr) != 0:
                 contents.append(loaded_data['contents'][i])
                 comments.append(loaded_data['comments'][i])
@@ -200,9 +193,9 @@ class KaDataset(data.Dataset):
         cnt, ln, ls = content
         cmt, le, lsb, lc = comment
         ent, lk = entity
-        clip_ent, clip_lk = clip_entity
+        clip_ent, clip_clm, clip_lk = clip_entity
         
-        return ((cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), (clip_ent, clip_lk), image), label
+        return ((cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), (clip_ent, clip_clm, clip_lk), image), label
 
 
 if __name__ == '__main__':
