@@ -1,6 +1,6 @@
 {
     "num_class": 2,
-    "ep": 20,
+    "ep": 50,
     "batch_size": 16,
     "hid_size": 100,
     "lr": 1e-3,
