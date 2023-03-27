@@ -414,7 +414,7 @@ if __name__ == '__main__':
                 else:
                     # fill with zeros if not using clip to maintain consistency
                     clip_ent_vec = np.full((self.max_clip_ent, self.clip_embed_params['embedding_size']), 0.0)
-                    clip_clm_vec = np.full((self.max_clip_cmt, self.clip_embed_params['embedding_size']), 0.0)
+                    clip_clm_vec = np.full((self.max_clip_ent, self.clip_embed_params['embedding_size']), 0.0)
                     clip_lk = self.max_clip_ent
 
                 img_vec = self._get_clip_img_embed(image) if self.use_clip else self._get_img_embed(image)
