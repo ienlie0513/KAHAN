@@ -73,7 +73,10 @@ def get_data(data_dir, data_source):
             else:
                 path = data_dir + '/' + data_source + '/news_images/' + 'fake/politifact_' + str(df.id[idx]) + '.jpg'
         elif data_source.startswith('gossipcop'):
-            path = data_dir + '/' + data_source + '/news_images/' + str(df.id[idx]) + '.jpg'
+            if df.label[idx] == 1:
+                path = data_dir + '/' + data_source + '/news_images/real/' + str(df.id[idx]) + '.jpg'
+            else:
+                path = data_dir + '/' + data_source + '/news_images/fake/' + str(df.id[idx]) + '.jpg'
         elif data_source.startswith('snopes'):
             # https://github.com/nguyenvo09/EMNLP2020
             pass

@@ -73,7 +73,7 @@ def show_result(train_acc, valid_acc, train_loss, valid_loss, save=None):
     plt.plot(valid_acc, label = "valid acc")
     plt.legend()
     if save:
-        plt.savefig("{}/acc_{}".format(save[1], save[0]))
+        plt.savefig("{}/{}_acc_{}".format(save[1], save[2], save[0]))
     else:
         plt.show()
 
@@ -85,7 +85,7 @@ def show_result(train_acc, valid_acc, train_loss, valid_loss, save=None):
     plt.plot(valid_loss, label = "valid loss")
     plt.legend()
     if save:
-        plt.savefig("{}/loss_{}".format(save[1], save[0]))
+        plt.savefig("{}/{}_loss_{}".format(save[1], save[2], save[0]))
     else:
         plt.show()
 
@@ -112,7 +112,7 @@ def plot_confusion_matrix(y_true, y_pred, num_class, normalize=False, save=None)
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
     if save: 
-        plt.savefig("{}/cm_{}".format(save[1], save[0]))
+        plt.savefig("{}/{}_cm_{}".format(save[1], save[2], save[0]))
     else:
         plt.show()
 

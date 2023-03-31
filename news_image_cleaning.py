@@ -121,6 +121,22 @@ if __name__ == '__main__':
                 print(e)
         df.to_csv(directory + '/cases_without_web_archive_url.csv', index=False)
 
+    elif args.action == 'clean gossipcop':
+        id_to_remove = [7259603960, 843758, 911401, 923847, 948472, 875314, 8081058062, 3663225246, 3066088888, 4495586215, 2778253719, 2507720803, 4024992311, 6489461221, 1615677123, 5111151830, 5328116357, 9328842988, 4888675652, 6899501174, 8172018375, 3172946389, 5034259222, 843265, 2008641429, 4466125915, 5480976970, 5408886782, 4360448788, 1457904080, 2254004589, 1628848955, 92814312, 4802653039, 267792336, 3893905315, 8410631215, 5241899341, 948328, 887769, 888688, 860652,  919774, 951548, 947692, 948524, 942374]
+        df = pd.read_csv(directory + '/gossipcop_no_ignore_en.tsv', sep='\t')
+        df = df[~df['id'].isin(id_to_remove)]
+
+        # remove rows with text length less than 1000
+        df = df[df['text'].str.len() > 1000]
+
+        df.to_csv(directory + '/gossipcop_no_ignore_en.tsv', sep='\t', index=False)
+
+    elif args.action == 'clean politifact':
+        id_to_remove = [14920, 15108, 14498, 15129, 13711, 13576, 7540, 279, 65, 13900, 200, 10332, 320, 7506, 772, 12120, 2624, 773, 11960, 14225, 6267, 954, 7923, 681, 211, 620, 401, 370, 13058, 11399, 8119, 13058, 11399, 8119, 620, 8470, 14498, 15129, 13576, 7540, 279, 65, 13900, 200, 7506, 772, 12120, 773, 2624, 11960, 14225, 6267, 954, 7923, 1213, 681, 211, 8470, 620, 401]
+        df = pd.read_csv(directory + '/politifact_v2_no_ignore_en.tsv', sep='\t')
+        df = df[~df['id'].isin(id_to_remove)]
+        df.to_csv(directory + '/politifact_v2_no_ignore_en.tsv', sep='\t', index=False)
+
     else:
         print('No action specified')
 

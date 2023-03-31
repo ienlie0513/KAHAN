@@ -32,13 +32,15 @@ def collage_maker(frame_width, images_per_row, padding, path, save_name, digits_
         if num%images_per_row==0:
             i=0
         im = Image.open(im)
+        # convert to rgb
+        im_rgb = im.convert('RGB')
         idx = ''.join(list(filter(str.isdigit, im.filename))[digits_to_remove:])
-        im = resizer(im)
+        im = resizer(im_rgb)
         #Here I resize my opened image, so it is no bigger than 100,100
         im.thumbnail((scaled_img_width,scaled_img_height))
         draw = ImageDraw.Draw(im)
         bbox = draw.textbbox(position, idx, font=font)
-        draw.rectangle(bbox, fill=(0, 0, 0))
+        draw.rectangle(bbox, fill=(0, 0, 0)) 
         draw.text(position, idx, fill=(255, 255, 255), font=font)
         #Iterate through a 4 by 4 grid with 100 spacing, to place my image
         y_cord = (j//images_per_row)*scaled_img_height
@@ -49,8 +51,14 @@ def collage_maker(frame_width, images_per_row, padding, path, save_name, digits_
 
     new_im.save(save_name, 'JPEG', quality=80, optimize=True, progressive=True)
 
-real_path = '././data/politifact_v2/news_images_v2/real'
-fake_path = '././data/politifact_v2/news_images_v2/fake'
+real_path_gossipcop = '././data/gossipcop/news_images_en/real'
+fake_path_gossipcop = '././data/gossipcop/news_images_en/fake'
+
+collage_maker(1000, 5, 40, fake_path_gossipcop, './data_analysis/collage_fake_gossipcop.jpg', 0)
+collage_maker(1000, 5, 40, real_path_gossipcop, './data_analysis/collage_real_gossipcop.jpg', 0)
+
+real_path = '././data/politifact_v2/news_images/real'
+fake_path = '././data/politifact_v2/news_images/fake'
 
 collage_maker(1000, 5, 40, fake_path, './data_analysis/collage_fake_v2.jpg', 2)
 collage_maker(1000, 5, 40, real_path, './data_analysis/collage_real_v2.jpg', 2)

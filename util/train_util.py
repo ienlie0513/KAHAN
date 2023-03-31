@@ -44,7 +44,7 @@ def trainIters(model, trainset, validset, train, evaluate, epochs=100, learning_
     optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     criterion = nn.CrossEntropyLoss()
     trainloader = data.DataLoader(trainset, batch_size, shuffle = True, pin_memory=True, num_workers=0)
-    early_stopper = EarlyStopper(patience=6, min_delta=0.01)
+    early_stopper = EarlyStopper(patience=6, min_delta=0.001)
 
     progress = Progressor('py', total=print_every, log=log)
 
@@ -76,11 +76,11 @@ def trainIters(model, trainset, validset, train, evaluate, epochs=100, learning_
         if progress.count == print_every and i < (epochs-1):
             progress.reset(i)
 
-        # # early stop
-        # if early_stopper.early_stop(test_loss):
-        #     tqdm.write("Early stop at epoch %s"%i)
-        #     log.write("Early stop at epoch %s \n"%i)
-        #     break
+        # early stop
+        if early_stopper.early_stop(test_loss):
+            tqdm.write("Early stop at epoch %s"%i)
+            log.write("Early stop at epoch %s \n"%i)
+            break
         
     tqdm.write("The highest accuracy is %s"%max_acc)
     log.write("The highest accuracy is %s\n"%max_acc)

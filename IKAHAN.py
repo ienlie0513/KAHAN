@@ -401,10 +401,10 @@ class IKAHAN(nn.Module):
         else:
             if self.use_clip:
                 #self.lin_cat = nn.Linear(, hid_size*2)
-                self.lin_out = DeepFC(hid_size*4 + clip_emb_size, [hid_size*2, hid_size], num_class)
+                self.lin_out = DeepFC(hid_size*4 + clip_emb_size, [hid_size*2, hid_size], num_class, dropout=dropout)
             else:
                 #self.lin_cat = nn.Linear(hid_size*6, hid_size*2)
-                self.lin_out = DeepFC(hid_size*6, [hid_size*2, hid_size], num_class)
+                self.lin_out = DeepFC(hid_size*6, [hid_size*2, hid_size], num_class, dropout=dropout)
 
             # self.lin_out = nn.Linear(hid_size*2, num_class)
             # self.relu = nn.ReLU()
@@ -485,7 +485,7 @@ def train(input_tensor, target_tensor, model, optimizer, criterion, device):
     output = model((cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), (clip_ent, clip_clm, clip_lk), img)
 
     loss = criterion(output, target_tensor)
-
+    
     correct = torch.sum(torch.eq(torch.argmax(output, -1), target_tensor)).item()
 
     loss.backward()
