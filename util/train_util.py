@@ -77,10 +77,10 @@ def trainIters(model, trainset, validset, train, evaluate, epochs=100, learning_
             progress.reset(i)
 
         # early stop
-        if early_stopper.early_stop(test_loss):
-            tqdm.write("Early stop at epoch %s"%i)
-            log.write("Early stop at epoch %s \n"%i)
-            break
+        # if early_stopper.early_stop(test_loss):
+        #     tqdm.write("Early stop at epoch %s"%i)
+        #     log.write("Early stop at epoch %s \n"%i)
+        #     break
         
     tqdm.write("The highest accuracy is %s"%max_acc)
     log.write("The highest accuracy is %s\n"%max_acc)
