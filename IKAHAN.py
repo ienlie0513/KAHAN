@@ -395,9 +395,10 @@ class IKAHAN(nn.Module):
         self.img_ent_att = img_ent_att
 
         if self.is_kahan:
-            self.lin_cat = nn.Linear(hid_size*4, hid_size*2)
-            self.lin_out = nn.Linear(hid_size*2, num_class)
-            self.relu = nn.ReLU()
+            # self.lin_cat = nn.Linear(hid_size*4, hid_size*2)
+            # self.lin_out = nn.Linear(hid_size*2, num_class)
+            # self.relu = nn.ReLU()
+            self.lin_out = DeepFC(hid_size*4, [hid_size*2, hid_size], num_class, dropout=dropout)
         else:
             if self.use_clip:
                 #self.lin_cat = nn.Linear(, hid_size*2)
@@ -441,9 +442,10 @@ class IKAHAN(nn.Module):
 
         if self.is_kahan:
             out = torch.cat((content_vec, comment_vec), dim=1)
-            out = self.lin_cat(out)
-            out = self.relu(out)
             out = self.lin_out(out)
+            # out = self.lin_cat(out)
+            # out = self.relu(out)
+            # out = self.lin_out(out)
         else:
             if self.use_clip:
                 out = torch.cat((content_vec, comment_vec, image_vec), dim=1)
