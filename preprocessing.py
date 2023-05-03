@@ -443,6 +443,7 @@ if __name__ == '__main__':
     parser.add_argument('--kahan', action='store_true')
     parser.add_argument('--exclude_with_no_images', action='store_true')
     parser.add_argument('--use_clip', action='store_true')
+    parser.add_argument('--num_workers', type=int, default=5)
     args = parser.parse_args()
 
     # load config
@@ -499,7 +500,7 @@ if __name__ == '__main__':
     transform = transforms.Compose([
         transforms.ToPILImage()
     ])
-    pool = Pool(config['image_preprocessing']['num_processes'])
+    pool = Pool(args.num_workers)
     # add to config
     clip_embed_params = {'model': model, 'transform': transform, 'preprocess': preprocess, 'tokenizer': tokenizer, 'pool': pool, 'embedding_size': config['image_preprocessing']['clip_embed_size']}
 
