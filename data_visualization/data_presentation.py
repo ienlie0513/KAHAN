@@ -7,15 +7,16 @@ def compute_stats(df, img_dir):
     total_news_count = len(df)
 
     # number of images
-    true_news_images = len(os.listdir(img_dir + '/real'))
-    fake_news_images = len(os.listdir(img_dir + '/fake'))
-    total_news_images = true_news_images + fake_news_images
+    # true_news_images = len(os.listdir(img_dir + '/real'))
+    # fake_news_images = len(os.listdir(img_dir + '/fake'))
+    # total_news_images = true_news_images + fake_news_images
     
     avg_comments_per_news = df['comments'].apply(lambda x: len(x.split('::'))).mean()
     # only compute for non empty entities
     avg_entities_per_news = df[df['entities'].notna()]['entities'].apply(lambda x: len(x.split('||'))).mean()
     
-    return true_news_count, fake_news_count, total_news_count, total_news_images, avg_comments_per_news, avg_entities_per_news
+    # return true_news_count, fake_news_count, total_news_count, total_news_images, avg_comments_per_news, avg_entities_per_news
+    return true_news_count, fake_news_count, total_news_count, avg_comments_per_news, avg_entities_per_news
 
 def compute_entity_claims_stats(df):
     avg_entity_claims_per_news = df['claims'].apply(lambda x: len(x.split('||'))).mean()
@@ -46,7 +47,7 @@ stats_df = pd.DataFrame({
     '# True news': [politifact_stats[0], gossipcop_stats[0]],
     '# Fake news': [politifact_stats[1], gossipcop_stats[1]],
     '# Total news': [politifact_stats[2], gossipcop_stats[2]],
-    '# Images': [politifact_stats[3], gossipcop_stats[3]], # same as total news
+    #'# Images': [politifact_stats[3], gossipcop_stats[3]], # same as total news
     'avg. # comments per news': [round(politifact_stats[4]), round(gossipcop_stats[4])],
     'avg. # entities per news': [round(politifact_stats[5]), round(gossipcop_stats[5])],
     #'avg. # entity claims per news': [round(politifact_entity_claims_stats), round(gossipcop_entity_claims_stats)]
