@@ -22,7 +22,7 @@ def compute_entity_claims_stats(df):
     return avg_entity_claims_per_news
 
 # Load the data
-gossipcop_df = pd.read_csv('./data/gossipcop_no_ignore_en.tsv', sep='\t')
+gossipcop_df = pd.read_csv('./data/gossipcop_v4_no_ignore_s.tsv', sep='\t')
 politifact_df = pd.read_csv('./data/politifact_v4_no_ignore_en.tsv', sep='\t')
 
 politifact_df['comments'] = politifact_df['comments'].fillna('')
