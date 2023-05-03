@@ -66,13 +66,13 @@ def load_and_store_images(df, source, directory):
 if __name__ == '__main__':
 
     argsparser = argparse.ArgumentParser()
-    argsparser.add_argument('--platform', type=str, default='politifact_v2')
+    argsparser.add_argument('--platform', type=str, default='politifact_v4')
     args = argsparser.parse_args()
 
     data_dir = './data'
     img_dir = 'news_images'
 
-    df_p = pd.read_csv(data_dir + '/' + args.platform + '_no_ignore_en.tsv', sep='\t')
+    df_p = pd.read_csv(data_dir + '/' + args.platform + '_no_ignore_s.tsv', sep='\t')
     # df_g = pd.read_csv('./data/gossipcop_data.tsv', sep='\t')
 
     load_and_store_images(df_p[df_p['label'] == 1], 'politifact', '{}/{}/{}/{}'.format(data_dir, args.platform, img_dir, 'real'))
@@ -85,3 +85,4 @@ if __name__ == '__main__':
 
     # load_and_store_images(df_wa, 'politifact', '{}/{}'.format(data_dir, 'images_with_web_archive_url'))
     # load_and_store_images(df_p, 'politifact', '{}/{}'.format(data_dir, 'images_without_web_archive_url'))
+

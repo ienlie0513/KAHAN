@@ -7,9 +7,15 @@ word2vec
 fakenewsnet_dataset
 fakenewsnet_dataset_v2
 fakenewsnet_dataset_v3
+fakenewsnet_dataset_v4
 
 data/gossipcop_no_ignore_en.tsv
 data/gossipcop_no_ignore_s.tsv
+
+data_analysis/*jpg
+data_analysis/*txt
+
+data_visualization/*/*png
 
 REL
 apicache-py3

@@ -1,6 +1,6 @@
 import pandas as pd 
 
-df_en_v2 = pd.read_csv('./data/politifact_v2_no_ignore_en.tsv', sep="\t")
+df_en_v2 = pd.read_csv('./data/politifact_v2_no_ignore_s_uncleaned.tsv', sep="\t")
 df_s_v3 = pd.read_csv('./data/politifact_v3_no_ignore_s.tsv', sep="\t")
 df_s = pd.read_csv('./data/politifact_no_ignore_s.tsv', sep="\t")
 
@@ -20,4 +20,4 @@ print(df_en_v2.isna().sum())
 print(df_en_v2['comments'].iloc[[-3]])
 
 # save the merged dataframe to csv
-df_en_v2.to_csv('./data/politifact_v2_no_ignore_en.tsv', sep="\t", index=False)
+df_en_v2.to_csv('./data/politifact_v2_no_ignore_s_uncleaned.tsv', sep="\t", index=False)

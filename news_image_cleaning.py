@@ -11,7 +11,7 @@ from newspaper import Article
 df_e = pd.read_csv("./data/politifact_v2_no_ignore_en.tsv", sep="\t")
 news_ids = df_e['id'].tolist()
 
-news_with_factcheck_image = [787, 13052, 13132, 12748, 14064, 6932, 780, 4275, 5237, 13283, 4588, 11552, 6603, 11761, 11314, 6646, 13305, 12801, 6939]
+news_with_factcheck_image = [787, 13052, 12748, 14064, 6932, 780, 4275, 5237, 13283, 4588, 11552, 6603, 11761, 11314, 6646, 13305, 12801, 6939]
 
 fake_news_with_invalid_image = [15371, 15386, 14984, 14265, 13617, 12944]
 real_news_with_invalid_image = [14984, 13058, 11855, 11699, 10276, 8118, 8045, 8119, 7714, 3192, 937, 679, 596, 368, 118, 516]

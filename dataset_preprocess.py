@@ -55,8 +55,7 @@ def get_comments(file_path, intervals):
     except Exception as e:
         print('Error: ', e)
     finally:
-        # remove mentions and urls
-        # comments = re.sub(r'@\w+', '', comments)
+        # remove urls
         comments = re.sub(r'http\S+', '', comments)
         # remove trailing '::'
         comments = comments[:-2]
@@ -84,8 +83,10 @@ def preprocess_news_data(_dir, sub_dir, intervals):
     contents = []
     for sub_sub_dir in ['fake', 'real']:
         for folder in os.listdir(_dir + '/' + sub_dir + '/' + sub_sub_dir):
+            if folder == '.DS_Store':
+                continue
             n_id = re.findall(r'\d+', folder)[0]
-            text, image, all_images = get_news_content(_dir + '/' + sub_dir + '/' + sub_sub_dir + '/' + folder + '/news_article.json')
+            text, image, all_images = get_news_content(_dir + '/' + sub_dir + '/' + sub_sub_dir + '/' + folder + '/news content.json')
             comments = get_comments(_dir + '/' + sub_dir + '/' + sub_sub_dir + '/' + folder + '/replies.json', intervals)
             log_file.write('{}: {} \r'.format(n_id, text[:100]))
             contents.append({
@@ -112,36 +113,58 @@ def get_news_article(f_file_path, t_file_folder):
 
     return file_content
 
+def get_replies(file_path):
+    with open(file_path) as f:
+        file_content = json.load(f)
+        return file_content
+
 
 def dataset_imputer(impt_from, impt_to, dataset):
     for sub_sub_dir in ['fake', 'real']:
         for folder in os.listdir(impt_to + '/' + dataset + '/' + sub_sub_dir):
-            file_path = impt_to + '/' + dataset + '/' + sub_sub_dir + '/' + folder + '/news_article.json'
-            try:
-                with open(file_path) as f:
-                    file_content = json.load(f)
-                    if not file_content:
-                        print('Imputing: ', file_path)
-                        file_content = get_news_article(impt_from + '/' + dataset + '/' + sub_sub_dir + '/' + folder + '/news content.json', impt_to + '/' + dataset + '/' + sub_sub_dir + '/' + folder)
-                        # write to file
-                        with open(file_path, 'w') as f:
-                            json.dump(file_content, f)
-            except Exception as e:
-                print('Error: ', e)
-
-#dataset_imputer('fakenewsnet_dataset_v2', 'fakenewsnet_dataset_v3', 'gossipcop')
+            if os.path.isdir(impt_from + '/' + dataset + '/' + sub_sub_dir + '/' + folder):
+                file_path = impt_to + '/' + dataset + '/' + sub_sub_dir + '/' + folder + '/news content.json'
+                # check if file exists
+                if not os.path.isfile(file_path):
+                    print('Imputing: ', file_path)
+                    file_content = get_news_article(impt_from + '/' + dataset + '/' + sub_sub_dir + '/' + folder + '/news_article.json', impt_to + '/' + dataset + '/' + sub_sub_dir + '/' + folder)
+                    # write to file
+                    with open(file_path, 'w') as f:
+                        json.dump(file_content, f)
+                # check if file is empty
+                elif os.stat(file_path).st_size == 0:
+                    print('Imputing: ', file_path)
+                    file_content = get_news_article(impt_from + '/' + dataset + '/' + sub_sub_dir + '/' + folder + '/news_article.json', impt_to + '/' + dataset + '/' + sub_sub_dir + '/' + folder)
+                    # write to file
+                    with open(file_path, 'w') as f:
+                        json.dump(file_content, f)
+                # check if text attribute is empty
+                elif len(get_news_content(file_path)[0]) == 0:
+                    print('Imputing: ', file_path)
+                    file_content = get_news_article(impt_from + '/' + dataset + '/' + sub_sub_dir + '/' + folder + '/news_article.json', impt_to + '/' + dataset + '/' + sub_sub_dir + '/' + folder)
+                    # write to file
+                    with open(file_path, 'w') as f:
+                        json.dump(file_content, f)
+                # get comments
+                comments = get_replies(impt_from + '/' + dataset + '/' + sub_sub_dir + '/' + folder + '/replies.json')
+                # write to file
+                with open(impt_to + '/' + dataset + '/' + sub_sub_dir + '/' + folder + '/replies.json', 'w') as f:
+                    json.dump(comments, f)
+                
 
 if __name__ == '__main__':
     config = json.load(open('./config_p.json'))
     config = json.load(open('./config_g.json'))
 
-    gossipcop_news_contents = preprocess_news_data('fakenewsnet_dataset_v3', 'gossipcop', config['intervals'])
-    gossipcop_news_contents_df = pd.DataFrame(gossipcop_news_contents)
-    gossipcop_news_contents_df.to_csv('data/gossipcop_no_ignore_s.tsv', sep='\t', index=False)
+    # gossipcop_news_contents = preprocess_news_data('fakenewsnet_dataset_v3', 'gossipcop', config['intervals'])
+    # gossipcop_news_contents_df = pd.DataFrame(gossipcop_news_contents)
+    # gossipcop_news_contents_df.to_csv('data/gossipcop_no_ignore_s_uncleaned.tsv', sep='\t', index=False)
 
-    politifact_news_contents = preprocess_news_data('fakenewsnet_dataset_v3', 'politifact', config['intervals'])
+    #dataset_imputer('fakenewsnet_dataset_v3', 'fakenewsnet_dataset_v4', 'politifact')
+
+    politifact_news_contents = preprocess_news_data('fakenewsnet_dataset_v4', 'politifact', config['intervals'])
     politifact_news_contents_df = pd.DataFrame(politifact_news_contents)
-    politifact_news_contents_df.to_csv('data/politifact_v3_no_ignore_s.tsv', sep='\t', index=False)
+    politifact_news_contents_df.to_csv('data/politifact_v4_no_ignore_s.tsv', sep='\t', index=False)
 
 
 

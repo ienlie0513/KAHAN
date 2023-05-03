@@ -153,7 +153,7 @@ class IHAN(nn.Module):
 
         # return reordered_output
 
-    def forward(self, input, ent_embs, lk):
+    def forward(self, input, use_attention, ent_embs, lk):
         lc, lf = self.generate_lengths(input)
         ##print('input: {} lf: {} lc: {}'.format(input.shape, lf.shape, lc.shape))
         input, len_f = self._reorder_input(input, lc, lf)
@@ -167,21 +167,21 @@ class IHAN(nn.Module):
         coarse_embs = self._reorder_fine_output(fine_embs, lc)
         ##print('coarse_embs: {}'.format(coarse_embs.size()))
 
+        if use_attention:
+            ## mask
+            idxes = torch.arange(0, ent_embs.size(1), out=ent_embs.data.new(ent_embs.size(1))).unsqueeze(1)
+            mask = (idxes>=lk.unsqueeze(0).to(idxes.device)).t() # (batch, max_ent)
 
-        ## mask
-        idxes = torch.arange(0, ent_embs.size(1), out=ent_embs.data.new(ent_embs.size(1))).unsqueeze(1)
-        mask = (idxes>=lk.unsqueeze(0).to(idxes.device)).t() # (batch, max_ent)
+            # image, entity, entity attention, get weighted ent_embed
+            # Q sent: (batch, max_coarse, 2*hidden)
+            # V, K entity:(batch, max_ent, 2*hidden)
+            ent_embs, ent_attn = self.IME_attn(coarse_embs.transpose(0, 1), ent_embs.transpose(0, 1), ent_embs.transpose(0, 1), key_padding_mask=mask)
+            ent_embs = self.ent_lin(ent_embs) 
+            ent_embs = self.relu(ent_embs)
 
-        # image, entity, entity attention, get weighted ent_embed
-        # Q sent: (batch, max_coarse, 2*hidden)
-        # V, K entity:(batch, max_ent, 2*hidden)
-        ent_embs, ent_attn = self.IME_attn(coarse_embs.transpose(0, 1), ent_embs.transpose(0, 1), ent_embs.transpose(0, 1), key_padding_mask=mask)
-        ent_embs = self.ent_lin(ent_embs) 
-        ent_embs = self.relu(ent_embs)
-
-        # cat weighted ent_embed to sent_embs
-        coarse_embs = torch.cat((coarse_embs, ent_embs.transpose(0, 1)), dim=2) # (batch, max_sent, 3*hidden)
-        ##print('sent_embs: {} '.format(sent_embs.size()))
+            # cat weighted ent_embed to sent_embs
+            coarse_embs = torch.cat((coarse_embs, ent_embs.transpose(0, 1)), dim=2) # (batch, max_sent, 3*hidden)
+            ##print('sent_embs: {} '.format(sent_embs.size()))
 
         packed_coarse = torch.nn.utils.rnn.pack_padded_sequence(coarse_embs, lc, batch_first=True, enforce_sorted=False)
         ##print('packed_coarse: {}'.format(packed_coarse.data.size()))
@@ -380,7 +380,7 @@ class Downsample(nn.Module):
 
 class IKAHAN(nn.Module):
 
-    def __init__(self, num_class, word2vec_cnt, word2vec_cmt, downsample_params, kahan, fusion_method, use_han=False, use_clip=False, img_ent_att=False, clip_emb_size=512, emb_size=100, hid_size=100, max_sent=50, dropout=0.3):
+    def __init__(self, num_class, word2vec_cnt, word2vec_cmt, downsample_params, kahan, kahan_plus, fusion_method, use_han=False, use_clip=False, img_ent_att=False, clip_emb_size=512, emb_size=100, hid_size=100, max_sent=50, dropout=0.3):
         super(IKAHAN, self).__init__()
 
         self.news = NHAN(word2vec_cnt, emb_size, hid_size, max_sent, dropout)
@@ -389,15 +389,19 @@ class IKAHAN(nn.Module):
         self.img_att = ImageAttention(clip_emb_size, 4)
 
         self.is_kahan = kahan
+        self.is_kahan_plus = kahan_plus
+
         self.fusion_method = fusion_method
         self.use_han = use_han
         self.use_clip = use_clip
+        
         self.img_ent_att = img_ent_att
 
         if self.is_kahan:
-            # self.lin_cat = nn.Linear(hid_size*4, hid_size*2)
-            # self.lin_out = nn.Linear(hid_size*2, num_class)
-            # self.relu = nn.ReLU()
+            self.lin_cat = nn.Linear(hid_size*4, hid_size*2)
+            self.lin_out = nn.Linear(hid_size*2, num_class)
+            self.relu = nn.ReLU()
+        elif self.is_kahan_plus:
             self.lin_out = DeepFC(hid_size*4, [hid_size*2, hid_size], num_class, dropout=dropout)
         else:
             if self.use_clip:
@@ -429,7 +433,7 @@ class IKAHAN(nn.Module):
         image_vec = None
 
         if self.use_han:
-            image_vec = self.image(img_input, *ent_input)
+            image_vec = self.image(img_input, self.img_ent_att, *ent_input)
         if self.use_clip:
             if self.img_ent_att:
                 image_vec = self.img_att(img_input, *clip_ent_input)
@@ -440,12 +444,13 @@ class IKAHAN(nn.Module):
 
         out = None
 
-        if self.is_kahan:
+        if self.is_kahan:  
+            out = self.lin_cat(out)
+            out = self.relu(out)
+            out = self.lin_out(out)
+        elif self.is_kahan_plus:
             out = torch.cat((content_vec, comment_vec), dim=1)
             out = self.lin_out(out)
-            # out = self.lin_cat(out)
-            # out = self.relu(out)
-            # out = self.lin_out(out)
         else:
             if self.use_clip:
                 out = torch.cat((content_vec, comment_vec, image_vec), dim=1)
