@@ -9,6 +9,9 @@ import argparse
 
 from ast import literal_eval
 
+import concurrent.futures
+from tqdm.contrib.concurrent import thread_map
+
 import urllib.parse
 import distance
 
@@ -31,17 +34,19 @@ def download_and_save_image(url, idx, save_path):
     img = Image.open(BytesIO(response.content)).convert('RGB')
     img.save(save_path)
 
-def load_and_store_images(df, source, directory):
+def load_and_store_images(df, source, directory, max_workers=10):
     found_count = 0
     img_number = 0
     os.makedirs(directory, exist_ok=True)
-    for idx, row in df.iterrows():
+
+    def process_row(row):
+        nonlocal found_count, img_number
         save_path = directory + '/' + source + '_' + str(row['id']) + '.jpg'
         try:
             if os.path.exists(save_path):
-                continue
+                return
             if isinstance(row['image'], str) and row['image'] != '':
-                if df.image[idx].lower().endswith(('.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.gif')):
+                if df.image[row.name].lower().endswith(('.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.gif')):
                     img_number += 1
                     download_and_save_image(row['image'], row['id'], save_path)
                     found_count += 1
@@ -63,10 +68,47 @@ def load_and_store_images(df, source, directory):
         except Exception as e:
             print('Image not loaded: ', e)
 
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        thread_map(process_row, df.itertuples(), max_workers=max_workers, desc="Downloading images")
+
+
+# def load_and_store_images(df, source, directory):
+#     found_count = 0
+#     img_number = 0
+#     os.makedirs(directory, exist_ok=True)
+#     for idx, row in df.iterrows():
+#         save_path = directory + '/' + source + '_' + str(row['id']) + '.jpg'
+#         try:
+#             if os.path.exists(save_path):
+#                 continue
+#             if isinstance(row['image'], str) and row['image'] != '':
+#                 if df.image[idx].lower().endswith(('.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.gif')):
+#                     img_number += 1
+#                     download_and_save_image(row['image'], row['id'], save_path)
+#                     found_count += 1
+#                     print('Image found: {}/{}'.format(found_count, img_number))
+#         except UnidentifiedImageError:
+#             try:
+#                 # Try again with the most similar image url
+#                 all_images = literal_eval(row['all_images'])
+#                 # Exclude the image url that was already tried
+#                 all_images.remove(row['image'])
+#                 # Find the most similar image url
+#                 most_similar_image_url = most_similar(row['image'], all_images)
+#                 img_number += 1
+#                 download_and_save_image(most_similar_image_url, row['id'], save_path)
+#                 found_count += 1
+#                 print('Image found: {}/{}'.format(found_count, img_number))
+#             except Exception as e:
+#                 print('Image not loaded: ', e)
+#         except Exception as e:
+#             print('Image not loaded: ', e)
+
 if __name__ == '__main__':
 
     argsparser = argparse.ArgumentParser()
     argsparser.add_argument('--platform', type=str, default='politifact_v4')
+    argsparser.add_argument('--max_workers', type=int, default=10)
     args = argsparser.parse_args()
 
     data_dir = './data'
@@ -75,8 +117,8 @@ if __name__ == '__main__':
     df_p = pd.read_csv(data_dir + '/' + args.platform + '_no_ignore_s.tsv', sep='\t')
     # df_g = pd.read_csv('./data/gossipcop_data.tsv', sep='\t')
 
-    load_and_store_images(df_p[df_p['label'] == 1], 'politifact', '{}/{}/{}/{}'.format(data_dir, args.platform, img_dir, 'real'))
-    load_and_store_images(df_p[df_p['label'] == 0], 'politifact', '{}/{}/{}/{}'.format(data_dir, args.platform, img_dir, 'fake'))
+    load_and_store_images(df_p[df_p['label'] == 1], args.platform.slit('_')[0], '{}/{}/{}/{}'.format(data_dir, args.platform, img_dir, 'real'), args.max_workers)
+    load_and_store_images(df_p[df_p['label'] == 0], args.platform.slit('_')[0], '{}/{}/{}/{}'.format(data_dir, args.platform, img_dir, 'fake'), args.max_workers)
 
     # df_wa = pd.read_csv(data_dir + '/cases_without_web_archive_url.csv', sep=',')
     # df_wa = df_wa[df_wa['img_url'].notna()]
