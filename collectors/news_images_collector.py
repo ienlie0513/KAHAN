@@ -39,7 +39,8 @@ def load_and_store_images(df, source, directory, max_workers=10):
     img_number = 0
     os.makedirs(directory, exist_ok=True)
 
-    def process_row(_, row):
+    def process_row(row_tuple):
+        _, row = row_tuple
         nonlocal found_count, img_number
         save_path = directory + '/' + source + '_' + str(row['id']) + '.jpg'
         try:
@@ -69,7 +70,7 @@ def load_and_store_images(df, source, directory, max_workers=10):
             print('Image not loaded: ', e)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        thread_map(process_row, df.itertuples(), max_workers=max_workers, desc="Downloading images")
+        thread_map(process_row, df.iterrows(), max_workers=max_workers, desc="Downloading images")
 
 
 # def load_and_store_images(df, source, directory):
