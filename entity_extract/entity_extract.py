@@ -11,6 +11,8 @@ from REL.utils import process_results
 from REL.entity_disambiguation import EntityDisambiguation
 from REL.ner import Cmns, load_flair_ner
 
+import ray
+
 # input news senteces, output the dict of em model input {'news_id_<sent_idx>':[[text],[]], 'news_id_<sent_idx>':[[text],[]]}
 # example input: {"test_doc1": [text, []], "test_doc2": [text, []]}
 def input_processing(contents, ids):
@@ -64,22 +66,61 @@ def result_processing(results):
 
     return entity_list
 
+class EntityExtractor:
+    def __init__(self, base_url, wiki_version, config):
+        self.md_model = MentionDetection(base_url, wiki_version)
+        self.tagger = load_flair_ner("ner-fast")
+        self.ed_model = EntityDisambiguation(base_url, wiki_version, config)
+
+    def extract_entities(self, input_text):
+        mentions_dataset, n_mentions = self.md_model.find_mentions(input_text, self.tagger)
+        predictions, timing = self.ed_model.predict(mentions_dataset)
+
+        output_list = []
+        for k, ment in mentions_dataset.items():
+            ents = []
+            if ment != []:
+                for ent in predictions[k]:
+                    if ent['conf_ed'] > 0.65:
+                        ents.append(ent['prediction'])
+
+            output_list.append((k, ents))
+
+        return output_list
+
 # return a list of entities
-def extract_entities(input_text, config, md_model, tagger, ed_model):
-    mentions_dataset, n_mentions = md_model.find_mentions(input_text, tagger)
-    predictions, timing = ed_model.predict(mentions_dataset)
 
-    output_list = []
-    for k, ment in mentions_dataset.items():
-        ents = []
-        if ment != []:
-            for ent in predictions[k]:
-                if ent['conf_ed'] > 0.65:
-                    ents.append(ent['prediction'])
+# def extract_entities(input_text, config, md_model, tagger, ed_model):
+#     mentions_dataset, n_mentions = md_model.find_mentions(input_text, tagger)
+#     predictions, timing = ed_model.predict(mentions_dataset)
 
-        output_list.append((k, ents))
+#     output_list = []
+#     for k, ment in mentions_dataset.items():
+#         ents = []
+#         if ment != []:
+#             for ent in predictions[k]:
+#                 if ent['conf_ed'] > 0.65:
+#                     ents.append(ent['prediction'])
 
-    return output_list
+#         output_list.append((k, ents))
+
+#     return output_list
+
+def parallel_entity_extraction(batch_list, config, base_url, wiki_version, num_workers=4):
+    entity_extractor_actors = [EntityExtractorActor.remote(base_url, wiki_version, config) for _ in range(num_workers)]
+
+    object_refs = [entity_extractor_actors[i % num_workers].extract_entities.remote(batch)
+                   for i, batch in enumerate(batch_list)]
+    entities = []
+
+    with tqdm(total=len(batch_list)) as progress_bar:
+        while object_refs:
+            ready_object_refs, object_refs = ray.wait(object_refs, num_returns=1)
+            results = ray.get(ready_object_refs[0])
+            entities.append(results)
+            progress_bar.update(1)
+
+    return entities
 
 # get news content from preprocessed tcv file, return in [[sent0, sent1, ...], [sent0, sent1, ...]]
 def get_data(df):
@@ -97,9 +138,13 @@ def get_data(df):
 
 
 if __name__ == "__main__":
+    ray.init(ignore_reinit_error=True)
+    EntityExtractorActor = ray.remote(EntityExtractor)
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--platform", type=str, default="politifact")
-    parser.add_argument("--batch", type=int, default=64)
+    parser.add_argument("--batch_size_per_worker", type=int, default=64)
+    parser.add_argument("--num_workers", type=int, default=4)
     args = parser.parse_args()
     
     df = pd.read_csv("./data/{}_no_ignore_s.tsv".format(args.platform), sep='\t')
@@ -108,7 +153,7 @@ if __name__ == "__main__":
     contents, ids = get_data(df)
 
     input_list = input_processing(contents, ids)
-    batch_list = batch_input(input_list, args.batch)
+    batch_list = batch_input(input_list, args.batch_size_per_worker)
 
     
     config = {
@@ -124,8 +169,11 @@ if __name__ == "__main__":
     tagger = load_flair_ner("ner-fast") # Using Flair
     ed_model = EntityDisambiguation(base_url, wiki_version, config)
 
-    entities = [extract_entities(batch, config, md_model, tagger, ed_model) for batch in tqdm(batch_list)]
+    entities = parallel_entity_extraction(batch_list, config, base_url, wiki_version, args.num_workers)
     ent_df = pd.DataFrame(result_processing(entities))
+
+    # entities = [extract_entities(batch, config, md_model, tagger, ed_model) for batch in tqdm(batch_list)]
+    # ent_df = pd.DataFrame(result_processing(entities))
     
     df = pd.merge(df, ent_df, on='id')
 

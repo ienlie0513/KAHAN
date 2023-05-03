@@ -6,6 +6,8 @@ import pandas as pd
 import pywikibot
 from tqdm import tqdm
 
+from tqdm.contrib.concurrent import process_map
+import ray
 
 # get news content and comments from preprocessed tcv file
 def get_data(df):
@@ -67,21 +69,55 @@ def get_claims(en, clm_dict):
                     logging.error("MaxlagTimeoutError: entity {}:{} claim {}".format(en, clm.on_item, clm_id))
     return '||'.join(claims)
 
-def entity_claim_extract(entities):
+@ray.remote
+def get_entity_claims_batch(entities):
     site = pywikibot.Site("en", "wikipedia")
-
     clm_list = []
-    for en in tqdm(entities):
+    for en in entities:
         item_dict = get_entity(site, en)
         clms = get_claims(en, item_dict["claims"]) if item_dict else ""
         clm_list.append({"entity": en, "claims": clms})
+    return clm_list
+# def get_entity_claim(en):
+#     site = pywikibot.Site("en", "wikipedia")
+#     item_dict = get_entity(site, en)
+#     clms = get_claims(en, item_dict["claims"]) if item_dict else ""
+#     return {"entity": en, "claims": clms}
+
+def entity_claim_extract(entities, batch_size_per_worker):
+
+    # Split entities into equally sized batches for each worker
+    entity_batches = [entities[i:i + batch_size_per_worker] for i in range(0, len(entities), batch_size_per_worker)]
+
+    object_refs = [get_entity_claims_batch.remote(batch) for batch in entity_batches]
+    clm_list = []
+
+    with tqdm(total=len(entities)) as progress_bar:
+        while object_refs:
+            ready_object_refs, object_refs = ray.wait(object_refs, num_returns=1)
+            results = ray.get(ready_object_refs[0])
+            clm_list.extend(results)
+            progress_bar.update(len(results))
 
     return pd.DataFrame(clm_list)
+# def entity_claim_extract(entities):
+#     site = pywikibot.Site("en", "wikipedia")
+
+#     clm_list = []
+#     for en in tqdm(entities):
+#         item_dict = get_entity(site, en)
+#         clms = get_claims(en, item_dict["claims"]) if item_dict else ""
+#         clm_list.append({"entity": en, "claims": clms})
+
+#     return pd.DataFrame(clm_list)
 
 
 if __name__ == "__main__":
+    ray.init(ignore_reinit_error=True)
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--platform", type=str, default="politifact")
+    parser.add_argument("--batch_size_per_worker", type=int, default=100)
     args = parser.parse_args()
 
     logging.basicConfig(filename='claim_{}.log'.format(args.platform), level=logging.INFO)
@@ -93,7 +129,8 @@ if __name__ == "__main__":
     entities = get_data(df)
 
     logging.info("Extract entity claims")
-    clm_df = entity_claim_extract(entities)
+    # clm_df = entity_claim_extract(entities)
+    clm_df = entity_claim_extract(entities, args.batch_size_per_worker)
 
     logging.info("Output extracted claims to tsv file")
     clm_df.to_csv("./data/{}_no_ignore_clm.tsv".format(args.platform), sep = '\t', index=False)
