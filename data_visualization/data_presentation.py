@@ -27,6 +27,7 @@ gossipcop_df = pd.read_csv('./data/gossipcop_v4_no_ignore_s.tsv', sep='\t')
 politifact_df = pd.read_csv('./data/politifact_v4_no_ignore_en.tsv', sep='\t')
 
 politifact_df['comments'] = politifact_df['comments'].fillna('')
+gossipcop_df['comments'] = gossipcop_df['comments'].fillna('')
 
 #gossipcop_claims_df = pd.read_csv('./data/gossipcop_v4_no_ignore_clm.tsv', sep='\t')
 #politifact_claims_df = pd.read_csv('./data/politifact_v4_no_ignore_clm.tsv', sep='\t')
