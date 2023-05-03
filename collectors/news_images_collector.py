@@ -117,8 +117,8 @@ if __name__ == '__main__':
     df_p = pd.read_csv(data_dir + '/' + args.platform + '_no_ignore_s.tsv', sep='\t')
     # df_g = pd.read_csv('./data/gossipcop_data.tsv', sep='\t')
 
-    load_and_store_images(df_p[df_p['label'] == 1], args.platform.slit('_')[0], '{}/{}/{}/{}'.format(data_dir, args.platform, img_dir, 'real'), args.max_workers)
-    load_and_store_images(df_p[df_p['label'] == 0], args.platform.slit('_')[0], '{}/{}/{}/{}'.format(data_dir, args.platform, img_dir, 'fake'), args.max_workers)
+    load_and_store_images(df_p[df_p['label'] == 1], args.platform.split('_')[0], '{}/{}/{}/{}'.format(data_dir, args.platform, img_dir, 'real'), args.max_workers)
+    load_and_store_images(df_p[df_p['label'] == 0], args.platform.split('_')[0], '{}/{}/{}/{}'.format(data_dir, args.platform, img_dir, 'fake'), args.max_workers)
 
     # df_wa = pd.read_csv(data_dir + '/cases_without_web_archive_url.csv', sep=',')
     # df_wa = df_wa[df_wa['img_url'].notna()]
