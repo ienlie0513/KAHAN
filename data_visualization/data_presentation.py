@@ -13,7 +13,8 @@ def compute_stats(df, img_dir):
     
     avg_comments_per_news = df['comments'].apply(lambda x: len(x.split('::'))).mean()
     # only compute for non empty entities
-    avg_entities_per_news = df[df['entities'].notna()]['entities'].apply(lambda x: len(x.split('||'))).mean()
+    # avg_entities_per_news = df[df['entities'].notna()]['entities'].apply(lambda x: len(x.split('||'))).mean()
+    avg_entities_per_news = 0
     
     # return true_news_count, fake_news_count, total_news_count, total_news_images, avg_comments_per_news, avg_entities_per_news
     return true_news_count, fake_news_count, total_news_count, avg_comments_per_news, avg_entities_per_news
