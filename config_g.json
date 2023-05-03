@@ -25,6 +25,7 @@
     "wiki2vec_dim": 100,
     "device": "cpu",
     "image_preprocessing": {
+        "num_processes": 4,
         "resnet50_embed_size": 100352,
         "vgg19_embed_size": 25088,
         "resnet50_downsample_kernel_size": 500,

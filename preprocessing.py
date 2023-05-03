@@ -499,7 +499,7 @@ if __name__ == '__main__':
     transform = transforms.Compose([
         transforms.ToPILImage()
     ])
-    pool = Pool(5)
+    pool = Pool(config['image_preprocessing']['num_processes'])
     # add to config
     clip_embed_params = {'model': model, 'transform': transform, 'preprocess': preprocess, 'tokenizer': tokenizer, 'pool': pool, 'embedding_size': config['image_preprocessing']['clip_embed_size']}
 
