@@ -37,6 +37,7 @@ if __name__ == '__main__':
 
     argsparser = argparse.ArgumentParser()
     argsparser.add_argument('--platform', type=str, default='politifact_v4')
+    argsparser.add_argument('--remove_images', type=bool, default=False)
     args = argsparser.parse_args()
 
     df = pd.read_csv('./data/{}_no_ignore_s.tsv'.format(args.platform), sep='\t')
@@ -51,9 +52,10 @@ if __name__ == '__main__':
 
     print('New Size: {}'.format(len(df)))
 
-    p_f_images_to_remove = [13617, 13936, 14265, 15246]
-    p_r_images_to_remove = [118, 368, 596, 937, 1375, 3192, 4555, 4787, 6907, 7714, 8005, 8045, 8557, 8769, 10276, 11069, 12486, 12587, 12944, 13058, 14984, 15133]
-    clean_news_images(p_f_images_to_remove + p_r_images_to_remove, './data/{}/news_images'.format(args.platform), args.platform)
+    if args.remove_images:
+        p_f_images_to_remove = [13617, 13936, 14265, 15246]
+        p_r_images_to_remove = [118, 368, 596, 937, 1375, 3192, 4555, 4787, 6907, 7714, 8005, 8045, 8557, 8769, 10276, 11069, 12486, 12587, 12944, 13058, 14984, 15133]
+        clean_news_images(p_f_images_to_remove + p_r_images_to_remove, './data/{}/news_images'.format(args.platform), args.platform)
 
     #check if nan exists
     print(df['comments'].isnull().values.any())
