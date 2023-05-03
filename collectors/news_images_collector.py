@@ -40,6 +40,7 @@ def load_and_store_images(df, source, directory, max_workers=10):
     os.makedirs(directory, exist_ok=True)
 
     def process_row(row):
+        row = row[1]
         nonlocal found_count, img_number
         save_path = directory + '/' + source + '_' + str(row['id']) + '.jpg'
         try:
