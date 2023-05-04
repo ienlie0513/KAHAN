@@ -22,7 +22,7 @@ def compute_entity_claims_stats(df):
     return avg_entity_claims_per_news
 
 # Load the data
-gossipcop_df = pd.read_csv('./data/gossipcop_v4_no_ignore_s.tsv', sep='\t')
+gossipcop_df = pd.read_csv('./data/gossipcop_v4_no_ignore_en.tsv', sep='\t')
 politifact_df = pd.read_csv('./data/politifact_v4_no_ignore_en.tsv', sep='\t')
 
 politifact_df['comments'] = politifact_df['comments'].fillna('')
@@ -35,7 +35,7 @@ gossipcop_claims_df = gossipcop_claims_df[gossipcop_claims_df['claims'].notna()]
 politifact_claims_df = politifact_claims_df[politifact_claims_df['claims'].notna()]
 
 # Compute the statistics for both datasets
-gossipcop_stats = compute_stats(gossipcop_df, './data/gossipcop/news_images')
+gossipcop_stats = compute_stats(gossipcop_df, './data/gossipcop_v4/news_images')
 politifact_stats = compute_stats(politifact_df, './data/politifact_v4/news_images')
 
 gossipcop_entity_claims_stats = compute_entity_claims_stats(gossipcop_claims_df)
