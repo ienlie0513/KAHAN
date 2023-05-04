@@ -2,6 +2,8 @@ import torch
 import numpy as np
 import open_clip
 
+import ray
+
 def clip_ent_claims_encoder(ent_clms, tokenizer, model):
     text = tokenizer(ent_clms)
 
@@ -42,6 +44,7 @@ if __name__ == '__main__':
 
     from tqdm import tqdm
 
+    @ray.remote
     class Preprocess():
         '''
             This class is for FakeNewsNet data
@@ -439,6 +442,7 @@ if __name__ == '__main__':
         
     parser = argparse.ArgumentParser()
     parser.add_argument('--platform', type=str, default='politifact')
+    parser.add_argument('--filename_end', type=str, default='')
     parser.add_argument('--cnn', type=str, default='vgg19')
     parser.add_argument('--kahan', action='store_true')
     parser.add_argument('--exclude_with_no_images', action='store_true')
@@ -446,18 +450,20 @@ if __name__ == '__main__':
     parser.add_argument('--num_workers', type=int, default=5)
     args = parser.parse_args()
 
+    ray.init()
+
     # load config
     config = None
     if args.platform.startswith('politifact'):
         config = json.load(open('./config_p.json'))
-    elif args.platform == 'gossipcop':
+    elif args.platform.startswith('gossipcop'):
         config = json.load(open('./config_g.json'))
     else:
         raise ValueError('Invalid platform argument')
 
     # load data
-    contents, comments, entities, images, labels = get_data(config['data_dir'], config['data_source'])
-    claim_dict = get_entity_claim(config['data_dir'], config['data_source'])
+    contents, comments, entities, images, labels = get_data(config['data_dir'], args.platform, args.filename_end)
+    claim_dict = get_entity_claim(config['data_dir'], args.platform)
 
     # load word2vec, wiki2vec model and add unk vector
     word2vec_cnt = KeyedVectors.load_word2vec_format(config['word2vec_cnt'])
@@ -494,7 +500,7 @@ if __name__ == '__main__':
         img_embed_params.update({'model': model, 'preprocess': preprocess, 'embedding_size': embedding_size})
     else:
         raise ValueError('CNN model not supported')
-    
+
     model, _, preprocess = open_clip.create_model_and_transforms(config['image_preprocessing']['clip_model'], pretrained=config['image_preprocessing']['clip_pretrained'])
     tokenizer = open_clip.get_tokenizer(config['image_preprocessing']['clip_tokenizer'])
     transform = transforms.Compose([

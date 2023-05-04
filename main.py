@@ -30,7 +30,7 @@ def log_and_print(s, log):
     print(s)
     log.write(s + '\n')
 
-def init_archive(config, model_type, downsample_method, fusion_method, hid, exclude_with_no_image, use_han, kahan, kahan_plus, use_clip, img_ent_att):
+def init_archive(config, model_type, downsample_method, fusion_method, hid, exclude_with_no_image, use_han, kahan, deep_classifier, use_clip, img_ent_att):
     # create log file
     now = datetime.now().strftime('%Y_%m_%d_%H:%M:%S')
     root = ''
@@ -47,12 +47,13 @@ def init_archive(config, model_type, downsample_method, fusion_method, hid, excl
             root = './model_ckpts/{}_{}_ihan_{}_{}'.format(config['data_source'], model_type, fusion_method, now)
     elif kahan:
         root = './model_ckpts/{}_kahan_{}'.format(config['data_source'], now)
-    elif kahan_plus:
-        root = './model_ckpts/{}_kahan_plus_{}'.format(config['data_source'], now)
     elif exclude_with_no_image:
         root = './model_ckpts/{}_excluded_no_img_cases_{}_{}{}_{}_{}'.format(config['data_source'], model_type, downsample_method, hid, fusion_method, now)
     else:
         root = './model_ckpts/{}_{}_{}{}_{}_{}'.format(config['data_source'], model_type, downsample_method, hid, fusion_method, now)
+
+    if deep_classifier:
+        root = ''.join([root, '_deep_classifier'])
         
     if not os.path.exists(root):
         os.makedirs(root)
@@ -81,7 +82,7 @@ if __name__ == '__main__':
     parser.add_argument('--platform', type=str, default='politifact_v2')
     parser.add_argument('--exclude_with_no_image', action='store_true')
     parser.add_argument('--kahan', action='store_true')
-    parser.add_argument('--kahan_plus', action='store_true')
+    parser.add_argument('--deep_classifier', action='store_true')
     parser.add_argument('--num_seeds', type=int, default=4)
     parser.add_argument('--num_folds', type=int, default=3)
     parser.add_argument('--use_han', action='store_true')
@@ -106,7 +107,7 @@ if __name__ == '__main__':
         'hid_layers': literal_eval(args.hid) if args.hid else []
     }
 
-    log, img_dir, ckpt_dir = init_archive(config, args.cnn, args.downsample, args.fusion, args.hid, args.exclude_with_no_image, args.use_han, args.kahan, args.kahan_plus, args.use_clip, args.img_ent_att)
+    log, img_dir, ckpt_dir = init_archive(config, args.cnn, args.downsample, args.fusion, args.hid, args.exclude_with_no_image, args.use_han, args.kahan, args.deep_classifier, args.use_clip, args.img_ent_att)
 
     # load data
     contents, comments, entities, clip_entities, images, labels = get_preprocessed_data(config['data_dir'], config['data_source'], args.cnn, args.exclude_with_no_image, args.kahan, args.use_han, args.use_clip)
@@ -151,14 +152,14 @@ if __name__ == '__main__':
             validset = KaDataset(x_val, c_val, e_val, ce_train, i_val, y_val)
 
             # training
-            model = IKAHAN(config['num_class'], word2vec_cnt, word2vec_cmt, downsample_params, args.kahan, args.kahan_plus, args.fusion, args.use_han, args.use_clip, args.img_ent_att, config['image_preprocessing']['clip_embed_size'], config['word2vec_dim'], config['hid_size'], max_sent=config['max_sent'], dropout=config['dropout'])
+            model = IKAHAN(config['num_class'], word2vec_cnt, word2vec_cmt, downsample_params, args.kahan, args.deep_classifier, args.fusion, args.use_han, args.use_clip, args.img_ent_att, config['image_preprocessing']['clip_embed_size'], config['word2vec_dim'], config['hid_size'], max_sent=config['max_sent'], dropout=config['dropout'])
             train_accs, test_accs, train_losses, test_losses, model_name = trainIters(model, trainset, validset, train, evaluate,
                 epochs=args.epochs, learning_rate=config['lr'], batch_size=config['batch_size'], weight_decay=config['weight_decay'],
                 save_info=(fold, ckpt_dir), print_every=config['print_every'], device=config['device'], log=log)
             show_result(train_accs, test_accs, train_losses, test_losses, save=(fold, img_dir, seed))
 
             # evaluate
-            model = IKAHAN(config['num_class'], word2vec_cnt, word2vec_cmt, downsample_params, args.kahan, args.kahan_plus, args.fusion, args.use_han, args.use_clip, args.img_ent_att, config['image_preprocessing']['clip_embed_size'], config['word2vec_dim'], config['hid_size'], max_sent=config['max_sent'], dropout=config['dropout']).to(config['device'])
+            model = IKAHAN(config['num_class'], word2vec_cnt, word2vec_cmt, downsample_params, args.kahan, args.deep_classifier, args.fusion, args.use_han, args.use_clip, args.img_ent_att, config['image_preprocessing']['clip_embed_size'], config['word2vec_dim'], config['hid_size'], max_sent=config['max_sent'], dropout=config['dropout']).to(config['device'])
             model.load_state_dict(torch.load(model_name))
             _, acc, predicts, targets = evaluate(model, validset, device=config['device'])
             acc, precision, recall, microf1, macrof1 = calculate_metrics(acc, targets, predicts, log=log)

@@ -24,8 +24,8 @@ def get_entity_claim(data_dir, data_source):
     return claim_dict
 
 # get news content and comments from preprocessed tcv file
-def get_data(data_dir, data_source):
-    df = pd.read_csv("{}/{}_no_ignore_en.tsv".format(data_dir, data_source), sep='\t') 
+def get_data(data_dir, data_source, filename_end=''):
+    df = pd.read_csv("{}/{}_no_ignore_en{}.tsv".format(data_dir, data_source, filename_end), sep='\t') 
     df = df.fillna('')
     contents = []
     comments = []
@@ -67,22 +67,21 @@ def get_data(data_dir, data_source):
 
         # load images
         path = ''
-        if data_source.startswith('politifact'):
-            if df.label[idx] == 1:
-                path = data_dir + '/' + data_source + '/news_images/' + 'real/politifact_' + str(df.id[idx]) + '.jpg'
-            else:
-                path = data_dir + '/' + data_source + '/news_images/' + 'fake/politifact_' + str(df.id[idx]) + '.jpg'
-        elif data_source.startswith('gossipcop'):
-            if df.label[idx] == 1:
-                path = data_dir + '/' + data_source + '/news_images/real/' + str(df.id[idx]) + '.jpg'
-            else:
-                path = data_dir + '/' + data_source + '/news_images/fake/' + str(df.id[idx]) + '.jpg'
-        elif data_source.startswith('snopes'):
-            # https://github.com/nguyenvo09/EMNLP2020
-            pass
+        if df.label[idx] == 1:
+            path = data_dir + '/' + data_source + '/news_images/' + 'real/' + data_source.split('_')[0] + '_' + str(df.id[idx]) + '.jpg'
         else:
-            print('Invalid data source: {}'.format(data_source))
-            exit()
+            path = data_dir + '/' + data_source + '/news_images/' + 'fake/' + data_source.split('_')[0] + '_' + str(df.id[idx]) + '.jpg'
+        # elif data_source.startswith('gossipcop'):
+        #     if df.label[idx] == 1:
+        #         path = data_dir + '/' + data_source + '/news_images/real/' + str(df.id[idx]) + '.jpg'
+        #     else:
+        #         path = data_dir + '/' + data_source + '/news_images/fake/' + str(df.id[idx]) + '.jpg'
+        # elif data_source.startswith('snopes'):
+        #     # https://github.com/nguyenvo09/EMNLP2020
+        #     pass
+        # else:
+        #     print('Invalid data source: {}'.format(data_source))
+        #     exit()
 
         if os.path.exists(path):
             img_count += 1

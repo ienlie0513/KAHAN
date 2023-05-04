@@ -16,7 +16,7 @@
     "max_cmt": 50, 
     "print_every": 10,
     "data_dir": "./data",
-    "data_source": "gossipcop",
+    "data_source": "gossipcop_v4",
     "sb_type": 0,
     "word2vec_cnt": "./word2vec/glove-wiki-gigaword-100",
     "word2vec_cmt": "./word2vec/glove-twitter-100",

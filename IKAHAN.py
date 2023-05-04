@@ -380,7 +380,7 @@ class Downsample(nn.Module):
 
 class IKAHAN(nn.Module):
 
-    def __init__(self, num_class, word2vec_cnt, word2vec_cmt, downsample_params, kahan, kahan_plus, fusion_method, use_han=False, use_clip=False, img_ent_att=False, clip_emb_size=512, emb_size=100, hid_size=100, max_sent=50, dropout=0.3):
+    def __init__(self, num_class, word2vec_cnt, word2vec_cmt, downsample_params, kahan, deep_classifier, fusion_method, use_han=False, use_clip=False, img_ent_att=False, clip_emb_size=512, emb_size=100, hid_size=100, max_sent=50, dropout=0.3):
         super(IKAHAN, self).__init__()
 
         self.news = NHAN(word2vec_cnt, emb_size, hid_size, max_sent, dropout)
@@ -389,7 +389,7 @@ class IKAHAN(nn.Module):
         self.img_att = ImageAttention(clip_emb_size, 4)
 
         self.is_kahan = kahan
-        self.is_kahan_plus = kahan_plus
+        self.has_deep_classifier = deep_classifier
 
         self.fusion_method = fusion_method
         self.use_han = use_han
@@ -398,21 +398,28 @@ class IKAHAN(nn.Module):
         self.img_ent_att = img_ent_att
 
         if self.is_kahan:
-            self.lin_cat = nn.Linear(hid_size*4, hid_size*2)
-            self.lin_out = nn.Linear(hid_size*2, num_class)
-            self.relu = nn.ReLU()
-        elif self.is_kahan_plus:
-            self.lin_out = DeepFC(hid_size*4, [hid_size*2, hid_size], num_class, dropout=dropout)
+            if self.has_deep_classifier:
+                self.lin_out = DeepFC(hid_size*4, [hid_size*2, hid_size], num_class, dropout=dropout)
+            else:
+                self.lin_cat = nn.Linear(hid_size*4, hid_size*2)
+                self.lin_out = nn.Linear(hid_size*2, num_class)
+                self.relu = nn.ReLU()
         else:
             if self.use_clip:
-                #self.lin_cat = nn.Linear(, hid_size*2)
-                self.lin_out = DeepFC(hid_size*4 + clip_emb_size, [hid_size*2, hid_size], num_class, dropout=dropout)
+                if self.has_deep_classifier:
+                    self.lin_out = DeepFC(hid_size*4 + clip_emb_size, [hid_size*2, hid_size], num_class, dropout=dropout)
+                else:
+                    self.lin_cat = nn.Linear(hid_size*4 + clip_emb_size, hid_size*2)
             else:
-                #self.lin_cat = nn.Linear(hid_size*6, hid_size*2)
-                self.lin_out = DeepFC(hid_size*6, [hid_size*2, hid_size], num_class, dropout=dropout)
+                if self.has_deep_classifier:
+                    self.lin_out = DeepFC(hid_size*6, [hid_size*2, hid_size], num_class, dropout=dropout)
+                else:
+                    self.lin_cat = nn.Linear(hid_size*6, hid_size*2)
 
-            # self.lin_out = nn.Linear(hid_size*2, num_class)
-            # self.relu = nn.ReLU()
+            if self.use_deep_classifier:
+                self.lin_out = nn.Linear(hid_size*2, num_class)
+                self.relu = nn.ReLU()
+
 
     def attn_map(self, cnt_input, cmt_input, ent_input):
         # (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk)
@@ -444,31 +451,40 @@ class IKAHAN(nn.Module):
 
         out = None
 
-        if self.is_kahan:  
-            out = self.lin_cat(out)
-            out = self.relu(out)
-            out = self.lin_out(out)
-        elif self.is_kahan_plus:
-            out = torch.cat((content_vec, comment_vec), dim=1)
-            out = self.lin_out(out)
+        if self.is_kahan:
+            if self.has_deep_classifier:
+                out = torch.cat((content_vec, comment_vec), dim=1)
+                out = self.lin_out(out)
+            else:
+                out = self.lin_cat(out)
+                out = self.relu(out)
+                out = self.lin_out(out)
         else:
             if self.use_clip:
-                out = torch.cat((content_vec, comment_vec, image_vec), dim=1)
-                # out = self.lin_cat(out)
-                # out = self.relu(out)
-                # out = self.lin_out(out)
+                if self.has_deep_classifier:
+                    out = torch.cat((content_vec, comment_vec, image_vec), dim=1)
+                else:
+                    out = self.lin_cat(out)
+                    out = self.relu(out)
+                    out = self.lin_out(out)
             else:
                 if self.fusion_method == 'cat':
-                    out = torch.cat((content_vec, comment_vec, image_vec), dim=1)
-                    # out = self.lin_cat(out)
-                    # out = self.relu(out)
-                    # out = self.lin_out(out)
+                    if self.has_deep_classifier:
+                        out = torch.cat((content_vec, comment_vec, image_vec), dim=1)
+                    else:
+                        out = self.lin_cat(out)
+                        out = self.relu(out)
+                        out = self.lin_out(out)
                 elif self.fusion_method == 'elem_mult':
-                    out = content_vec * comment_vec * image_vec
-                    # out = self.lin_out(out)
+                    if self.has_deep_classifier:
+                        out = content_vec * comment_vec * image_vec
+                    else:
+                        out = self.lin_out(out)
                 elif self.fusion_method == 'avg':
-                    out = (content_vec + comment_vec + image_vec) / 3
-                    # out = self.lin_out(out)
+                    if self.has_deep_classifier:
+                        out = (content_vec + comment_vec + image_vec) / 3
+                    else:
+                        out = self.lin_out(out)
             
             out = self.lin_out(out)
 
