@@ -29,33 +29,34 @@ def compute_entity_claims_stats(df):
 if __name__ == '__main__':
     # Arguments
     parser = argparse.ArgumentParser(description='Data presentation')
+    parser.add_argument('--version', type=str, default='_v4', help='Dataset version to use')
     parser.add_argument('--reduced', action='store_true', help='Use reduced dataset')
     parser.add_argument('--balanced', action='store_true', help='Use balanced dataset')
     args = parser.parse_args()
 
     # Load the data
     if args.reduced:
-        gossipcop_df = pd.read_csv('./data/gossipcop_v4_no_ignore_en_reduced.tsv', sep='\t')
-        politifact_df = pd.read_csv('./data/politifact_v4_no_ignore_en_reduced.tsv', sep='\t')
+        gossipcop_df = pd.read_csv('./data/gossipcop' + args.version + '_no_ignore_en_reduced.tsv', sep='\t')
+        politifact_df = pd.read_csv('./data/politifact' + args.version + '_no_ignore_en_reduced.tsv', sep='\t')
     elif args.balanced:
-        gossipcop_df = pd.read_csv('./data/gossipcop_v4_no_ignore_en_balanced.tsv', sep='\t')
-        politifact_df = pd.read_csv('./data/politifact_v4_no_ignore_en.tsv', sep='\t')
+        gossipcop_df = pd.read_csv('./data/gossipcop' + args.version + '_no_ignore_en_balanced.tsv', sep='\t')
+        politifact_df = pd.read_csv('./data/politifact' + args.version + '_no_ignore_en.tsv', sep='\t')
     else:
-        gossipcop_df = pd.read_csv('./data/gossipcop_v4_no_ignore_en.tsv', sep='\t')
-        politifact_df = pd.read_csv('./data/politifact_v4_no_ignore_en.tsv', sep='\t')
+        gossipcop_df = pd.read_csv('./data/gossipcop' + args.version + '_no_ignore_en.tsv', sep='\t')
+        politifact_df = pd.read_csv('./data/politifact' + args.version + '_no_ignore_en.tsv', sep='\t')
 
     politifact_df['comments'] = politifact_df['comments'].fillna('')
     gossipcop_df['comments'] = gossipcop_df['comments'].fillna('')
 
-    gossipcop_claims_df = pd.read_csv('./data/gossipcop_v4_no_ignore_clm.tsv', sep='\t')
-    politifact_claims_df = pd.read_csv('./data/politifact_v4_no_ignore_clm.tsv', sep='\t')
+    gossipcop_claims_df = pd.read_csv('./data/gossipcop' + args.version + '_no_ignore_clm.tsv', sep='\t')
+    politifact_claims_df = pd.read_csv('./data/politifact' + args.version + '_no_ignore_clm.tsv', sep='\t')
     # remove the rows with empty claims
     gossipcop_claims_df = gossipcop_claims_df[gossipcop_claims_df['claims'].notna()]
     politifact_claims_df = politifact_claims_df[politifact_claims_df['claims'].notna()]
 
     # Compute the statistics for both datasets
-    gossipcop_stats = compute_stats(gossipcop_df, './data/gossipcop_v4/news_images')
-    politifact_stats = compute_stats(politifact_df, './data/politifact_v4/news_images')
+    gossipcop_stats = compute_stats(gossipcop_df, './data/gossipcop' + args.version + '/news_images')
+    politifact_stats = compute_stats(politifact_df, './data/politifact' + args.version + '/news_images')
 
     gossipcop_entity_claims_stats = compute_entity_claims_stats(gossipcop_claims_df)
     politifact_entity_claims_stats = compute_entity_claims_stats(politifact_claims_df)

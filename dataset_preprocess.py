@@ -10,6 +10,8 @@ import re
 import json
 import pandas as pd
 
+import argparse
+
 # make a new directory for the preprocessed data
 dir_path = os.getcwd() + '/data'
 os.makedirs(dir_path, exist_ok=True)
@@ -153,18 +155,24 @@ def dataset_imputer(impt_from, impt_to, dataset):
                 
 
 if __name__ == '__main__':
-    config = json.load(open('./config_p.json'))
-    config = json.load(open('./config_g.json'))
+    argparse = argparse.ArgumentParser()
+    argparse.add_argument('--platform', type=str, default='politifact', help='politifact or gossipcop')
+    argparse.add_argument('--dataset', type=str, default='fakenewsnet_dataset_v4')
+    argparse.add_argument('--savename', type=str, default='politifact_v4_no_ignore_s')
+    argparse.add_argument('--impute', action='store_true', default=False)
+    args = argparse.parse_args()
 
-    # gossipcop_news_contents = preprocess_news_data('fakenewsnet_dataset_v3', 'gossipcop', config['intervals'])
-    # gossipcop_news_contents_df = pd.DataFrame(gossipcop_news_contents)
-    # gossipcop_news_contents_df.to_csv('data/gossipcop_no_ignore_s_uncleaned.tsv', sep='\t', index=False)
+    if args.platform == 'politifact':
+        config = json.load(open('./config_p.json'))
+    elif args.platform == 'gossipcop':
+        config = json.load(open('./config_g.json'))
 
-    #dataset_imputer('fakenewsnet_dataset_v3', 'fakenewsnet_dataset_v4', 'politifact')
+    if args.impute:
+        dataset_imputer('fakenewsnet_dataset_v3', args.dataset, args.platform)
 
-    politifact_news_contents = preprocess_news_data('fakenewsnet_dataset_v4', 'politifact', config['intervals'])
-    politifact_news_contents_df = pd.DataFrame(politifact_news_contents)
-    politifact_news_contents_df.to_csv('data/politifact_v4_no_ignore_s.tsv', sep='\t', index=False)
+    news_contents = preprocess_news_data(args.dataset, args.platform, config['intervals'])
+    news_contents_df = pd.DataFrame(news_contents)
+    news_contents_df.to_csv('data/{}.tsv'.format(args.savename), sep='\t', index=False)
 
 
 
