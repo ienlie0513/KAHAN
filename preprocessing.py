@@ -2,8 +2,6 @@ import torch
 import numpy as np
 import open_clip
 
-import ray
-
 def clip_ent_claims_encoder(ent_clms, tokenizer, model):
     text = tokenizer(ent_clms)
 
@@ -44,7 +42,6 @@ if __name__ == '__main__':
 
     from tqdm import tqdm
 
-    @ray.remote
     class Preprocess():
         '''
             This class is for FakeNewsNet data
@@ -449,8 +446,6 @@ if __name__ == '__main__':
     parser.add_argument('--use_clip', action='store_true')
     parser.add_argument('--num_workers', type=int, default=5)
     args = parser.parse_args()
-
-    ray.init()
 
     # load config
     config = None

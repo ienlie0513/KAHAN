@@ -106,7 +106,11 @@ fake_path = '././data/politifact_v4/news_images/fake'
 collage_maker(1000, 5, 40, fake_path, './data_analysis/collage_fake_politifact_v4.jpg', 1)
 collage_maker(1000, 5, 40, real_path, './data_analysis/collage_real_politifact_v4.jpg', 1)
 
+real_path = '././data/gossipcop_v4/news_images/real'
+fake_path = '././data/gossipcop_v4/news_images/fake'
 
+collage_maker(1000, 5, 40, fake_path, './data_analysis/collage_fake_gossipcop_v4.jpg', 1)
+collage_maker(1000, 5, 40, real_path, './data_analysis/collage_real_gossipcop_v4.jpg', 1)
 
 
 
