@@ -100,17 +100,29 @@ def collage_maker(frame_width, images_per_row, padding, path, save_name, digits_
 # collage_maker(300, 2, 40, typical_path_fake_g, './data_analysis/collage_fake_typical_gossipcop.jpg', 0)
 # collage_maker(300, 2, 40, typical_path_real_g, './data_analysis/collage_real_typical_gossipcop.jpg', 0)
 
-real_path = '././data/politifact_v4/news_images/real'
-fake_path = '././data/politifact_v4/news_images/fake'
+real_path_p = './data/politifact_v4/news_images/real'
+fake_path_p = './data/politifact_v4/news_images/fake'
 
-collage_maker(1000, 5, 40, fake_path, './data_analysis/collage_fake_politifact_v4.jpg', 1)
-collage_maker(1000, 5, 40, real_path, './data_analysis/collage_real_politifact_v4.jpg', 1)
+collage_maker(1000, 5, 40, fake_path_p, './data_analysis/collage_fake_politifact_v4.jpg', 1)
+collage_maker(1000, 5, 40, real_path_p, './data_analysis/collage_real_politifact_v4.jpg', 1)
 
-real_path = '././data/gossipcop_v4/news_images/real'
-fake_path = '././data/gossipcop_v4/news_images/fake'
+real_path_g = './data/gossipcop_v4/news_images/real'
+fake_path_g = './data/gossipcop_v4/news_images/fake'
 
-collage_maker(1000, 5, 40, fake_path, './data_analysis/collage_fake_gossipcop_v4.jpg', 1)
-collage_maker(1000, 5, 40, real_path, './data_analysis/collage_real_gossipcop_v4.jpg', 1)
+collage_maker(1000, 5, 40, fake_path_g, './data_analysis/collage_fake_gossipcop_v4.jpg', 1)
+collage_maker(1000, 5, 40, real_path_g, './data_analysis/collage_real_gossipcop_v4.jpg', 1)
+
+# real_path = '././data/politifact/news_images/real'
+# fake_path = '././data/politifact/news_images/fake'
+
+# collage_maker(1000, 5, 40, fake_path, './data_analysis/collage_fake_politifact_v1.jpg', 1)
+# collage_maker(1000, 5, 40, real_path, './data_analysis/collage_real_politifact_v1.jpg', 1)
+
+# real_path = '././data/gossipcop/news_images/real'
+# fake_path = '././data/gossipcop/news_images/fake'
+
+# collage_maker(1000, 5, 40, fake_path, './data_analysis/collage_fake_gossipcop_v1.jpg', 1)
+# collage_maker(1000, 5, 40, real_path, './data_analysis/collage_real_gossipcop_v1.jpg', 1)
 
 
 

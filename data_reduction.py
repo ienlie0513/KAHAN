@@ -47,4 +47,4 @@ if __name__ == '__main__':
 
         print(balanced_df['label'].value_counts())
         
-        balanced_df.to_csv('./data/gossipcop_v4_no_ignore_en_balanced.tsv', sep='\t', index=False)
+        balanced_df.to_csv('./data/gossipcop_no_ignore_en_balanced.tsv', sep='\t', index=False)
