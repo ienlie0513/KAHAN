@@ -40,6 +40,10 @@ def trainIters(model, trainset, validset, train, evaluate, epochs=100, learning_
     
     max_acc = 0
 
+    # Use DataParallel for multiple GPUs
+    if torch.cuda.device_count() > 1:
+        model = nn.DataParallel(model)
+
     model = model.to(device)
     optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     criterion = nn.CrossEntropyLoss()

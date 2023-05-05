@@ -9,8 +9,6 @@ import torchvision.transforms as transforms
 from gensim.models.keyedvectors import KeyedVectors
 from wikipedia2vec import Wikipedia2Vec
 
-from PIL import Image
-
 # get entity claim from preprocessed tcv file
 def get_entity_claim(data_dir, data_source):
     df = pd.read_csv("{}/{}_no_ignore_clm.tsv".format(data_dir, data_source), sep='\t') 
@@ -30,12 +28,8 @@ def get_data(data_dir, data_source, filename_end=''):
     contents = []
     comments = []
     entities = []
-    images = []
+    image_paths = []
     labels = []
-
-    img_transform = transforms.Compose([
-        transforms.PILToTensor()
-    ])
 
     img_count = 0
 
@@ -85,10 +79,9 @@ def get_data(data_dir, data_source, filename_end=''):
 
         if os.path.exists(path):
             img_count += 1
-            with Image.open(path).convert('RGB') as img:
-                images.append(img_transform(img))
+            image_paths.append(path)
         else:
-            images.append(None)
+            image_paths.append(None)
 
         # load labels
         labels.append(df.label[idx])
@@ -98,10 +91,10 @@ def get_data(data_dir, data_source, filename_end=''):
     contents = np.asarray(contents)
     comments = np.asarray(comments)
     entities = np.asarray(entities)
-    images = np.asarray(images)
+    image_paths = np.asarray(image_paths)
     labels = np.asarray(labels)
 
-    return contents, comments, entities, images, labels
+    return contents, comments, entities, image_paths, labels
 
 
 def get_preprocessed_data(data_dir, data_source, model_type, exclude_with_no_image=False, kahan=False, use_ihan=False, use_clip=False):

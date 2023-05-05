@@ -31,6 +31,7 @@ if __name__ == '__main__':
     import torch.nn as nn
     from torchvision.models import vgg19, resnet50, VGG19_Weights, ResNet50_Weights
     import torchvision.transforms as transforms
+    from PIL import Image
 
     from nltk import sent_tokenize
     from nltk.tokenize import word_tokenize
@@ -88,8 +89,11 @@ if __name__ == '__main__':
 
             self.max_clip_ent = max_clip_ent
             self.max_clip_clms = max_clip_clms
-            
 
+            self.transform = transforms.Compose([
+                transforms.PILToTensor()
+            ])
+            
         def __len__(self):
             return len(self.labels)
             
@@ -387,6 +391,14 @@ if __name__ == '__main__':
                     embedding = extracted_embedding.squeeze(0)
             # return the feature vector
             return embedding
+        
+        def image_loader(self, image_paths):
+            for path in image_paths:
+                if path is not None:
+                    with Image.open(path).convert('RGB') as img:
+                        yield self.transform(img)
+                else:
+                    yield None
 
         # return data
         def preprocess(self):
@@ -397,11 +409,10 @@ if __name__ == '__main__':
             images = []
             labels = []
 
-            for index in tqdm(self.indices, desc='Preprocessing'):
+            for index, image in zip(tqdm(self.indices, desc='Preprocessing'), self.image_loader(image_paths)):
                 content = self.contents[index]
                 comment = self.comments[index]
                 entity = self.entities[index]
-                image = self.images[index]
                 label = self.labels[index]
 
                 content_vec, ln, ls = self._news_content_preprocess(content)
@@ -457,7 +468,7 @@ if __name__ == '__main__':
         raise ValueError('Invalid platform argument')
 
     # load data
-    contents, comments, entities, images, labels = get_data(config['data_dir'], args.platform, args.filename_end)
+    contents, comments, entities, image_paths, labels = get_data(config['data_dir'], args.platform, args.filename_end)
     claim_dict = get_entity_claim(config['data_dir'], args.platform)
 
     # load word2vec, wiki2vec model and add unk vector
@@ -506,7 +517,7 @@ if __name__ == '__main__':
     clip_embed_params = {'model': model, 'transform': transform, 'preprocess': preprocess, 'tokenizer': tokenizer, 'pool': pool, 'embedding_size': config['image_preprocessing']['clip_embed_size']}
 
     # preprocess data
-    preprocessor = Preprocess(contents, comments, entities, images, labels, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec,
+    preprocessor = Preprocess(contents, comments, entities, image_paths, labels, claim_dict, word2vec_cnt, word2vec_cmt, wiki2vec,
             sb_type=config['sb_type'], img_embed_params=img_embed_params, clip_embed_params=clip_embed_params, kahan=args.kahan, exclude_with_no_images=args.exclude_with_no_images, use_clip=args.use_clip, max_len=config['max_len'], max_sent=config['max_sent'], max_ent=config['max_ent'], M=config['M'], max_cmt=config['max_cmt'], max_clip_ent=config['max_clip_ent'], max_clip_clms=config['max_clip_clms'])
     
     contents, comments, entities, clip_entities, images, labels = preprocessor.preprocess()
