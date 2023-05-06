@@ -20,8 +20,27 @@ def clean_news_content(platform_df):
     return platform_df
 
 def clean_news_comments(platform_df):
-    # no content
-    platform_df = platform_df.dropna(subset=['comments'])
+    platform_df['comments'].fillna('', inplace=True)
+    # remove empty comments
+    for i, row in platform_df.iterrows():
+        comments = row['comments'].split('::')
+        
+        cleaned_comments = []
+
+        for cmt in comments:
+            comment_parts = cmt.split('<>')
+            if len(comment_parts) == 2:
+                comment_text = comment_parts[0].strip()
+                comment_number = comment_parts[1].strip()
+
+                if comment_text:
+                    cleaned_comments.append(cmt)
+
+        # Update the comment string for the row
+        if cleaned_comments:
+            platform_df.at[i, 'comments'] = '::'.join(cleaned_comments)
+        else:
+            platform_df.at[i, 'comments'] = ''
 
     return platform_df
 
@@ -37,18 +56,18 @@ if __name__ == '__main__':
 
     argsparser = argparse.ArgumentParser()
     argsparser.add_argument('--platform', type=str, default='politifact_v4')
+    argsparser.add_argument('--type', type=str, default='s')
     argsparser.add_argument('--remove_images', action='store_true')
     args = argsparser.parse_args()
 
-    df = pd.read_csv('./data/{}_no_ignore_s.tsv'.format(args.platform), sep='\t')
+    df = pd.read_csv('./data/{}_no_ignore_{}.tsv'.format(args.platform, args.type), sep='\t')
 
     df_text_cleaned = clean_news_content(df)
     print('Text Content \n {} Real News Removed - {} Fake News Removed'.format(len(df[df['label'] == 1]) - len(df_text_cleaned[df_text_cleaned['label'] == 1]), len(df[df['label'] == 0]) - len(df_text_cleaned[df_text_cleaned['label'] == 0])))
     df = df_text_cleaned
 
-    # df_comments_cleaned = clean_news_comments(df)
-    # print('Comments \n {} Real News Removed - {} Fake News Removed'.format(len(df[df['label'] == 1]) - len(df_comments_cleaned[df_comments_cleaned['label'] == 1]), len(df[df['label'] == 0]) - len(df_comments_cleaned[df_comments_cleaned['label'] == 0])))
-    # df = df_comments_cleaned
+    df_comments_cleaned = clean_news_comments(df)
+    df = df_comments_cleaned
 
     print('New Size: {}'.format(len(df)))
 
@@ -66,5 +85,5 @@ if __name__ == '__main__':
     #check if nan exists
     print(df['comments'].isnull().values.any())
 
-    df.to_csv('./data/{}_no_ignore_s.tsv'.format(args.platform), sep='\t', index=False)
+    df.to_csv('./data/{}_no_ignore_{}.tsv'.format(args.platform, args.type), sep='\t', index=False)
     

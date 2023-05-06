@@ -380,13 +380,18 @@ class Downsample(nn.Module):
 
 class IKAHAN(nn.Module):
 
-    def __init__(self, num_class, word2vec_cnt, word2vec_cmt, downsample_params, kahan, deep_classifier, fusion_method, use_han=False, use_clip=False, img_ent_att=False, clip_emb_size=512, emb_size=100, hid_size=100, max_sent=50, dropout=0.3):
+    def __init__(self, num_class, word2vec_cnt, word2vec_cmt, downsample_params, kahan, deep_classifier, fusion_method, use_han=False, use_clip=False, img_ent_att=False, clip_emb_size=512, emb_size=100, hid_size=100, max_sent=50, max_len=120, max_cmt=50, dropout=0.3):
         super(IKAHAN, self).__init__()
 
         self.news = NHAN(word2vec_cnt, emb_size, hid_size, max_sent, dropout)
         self.comment = CHAN(word2vec_cmt, emb_size, hid_size, dropout)
         self.image = IHAN(emb_size, hid_size, dropout) if use_han else Downsample(hid_size*2, **downsample_params)
         self.img_att = ImageAttention(clip_emb_size, 4)
+
+        self.word2vec_cmt = word2vec_cmt
+        self.hid_size = hid_size
+        self.max_cmt = max_cmt
+        self.max_len = max_len
 
         self.is_kahan = kahan
         self.has_deep_classifier = deep_classifier
@@ -424,7 +429,7 @@ class IKAHAN(nn.Module):
     def attn_map(self, cnt_input, cmt_input, ent_input):
         # (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk)
         content_vec, n_ent_attn = self.news(*cnt_input, *ent_input)
-        comment_vec, c_ent_attn = self.comment(*cmt_input, *ent_input) if torch.count_nonzero(cmt_input[-1]) > 0 else (torch.ones(cmt_input[0].size(0), 200), torch.tensor([]))
+        comment_vec, c_ent_attn = self.comment(*cmt_input, *ent_input) if torch.equal(cmt_input[0], np.full((self.max_cmt, self.max_len), self.word2vec_cmt.key_to_index['_pad_'], dtype=int)) else (torch.ones(cmt_input[0].size(0), self.hid_size*2), torch.tensor([]))
 
         out = torch.cat((content_vec, comment_vec), dim=1)
         out = self.lin_cat(out)
@@ -436,7 +441,7 @@ class IKAHAN(nn.Module):
     def forward(self, cnt_input, cmt_input, ent_input, clip_ent_input, img_input):
         # (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), (clip_ent, lk), img
         content_vec,_ = self.news(*cnt_input, *ent_input)
-        comment_vec,_ = self.comment(*cmt_input, *ent_input) if torch.count_nonzero(cmt_input[-1]) > 0 else (torch.ones(cmt_input[0].size(0), 200), torch.tensor([]))
+        comment_vec,_ = self.comment(*cmt_input, *ent_input) if torch.equal(cmt_input[0], np.full((self.max_cmt, self.max_len), self.word2vec_cmt.key_to_index['_pad_'], dtype=int)) else (torch.ones(cmt_input[0].size(0), self.hid_size*2), torch.tensor([]))
         image_vec = None
 
         if self.use_han:
