@@ -416,7 +416,7 @@ class IKAHAN(nn.Module):
                 else:
                     self.lin_cat = nn.Linear(hid_size*6, hid_size*2)
 
-            if self.use_deep_classifier:
+            if self.has_deep_classifier:
                 self.lin_out = nn.Linear(hid_size*2, num_class)
                 self.relu = nn.ReLU()
 

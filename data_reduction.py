@@ -6,34 +6,39 @@ import argparse
 if __name__ == '__main__':
     # Arguments
     parser = argparse.ArgumentParser(description='Data reduction')
+    parser.add_argument('--version', type=str, default='_v4', help='Dataset version to use')
     parser.add_argument('--balance_g', action='store_true', help='balance gossipcop dataset')
-    parser.add_argument('--filter_both', action='store_true', help='filter both datasets')
+    parser.add_argument('--filter_comments', action='store_true', help='filter comments')
+    parser.add_argument('--filter_images', action='store_true', help='filter images')
     args = parser.parse_args()
 
-    politifact_df = pd.read_csv('./data/politifact_v4_no_ignore_en.tsv', sep='\t')
-    gossipcop_df = pd.read_csv('./data/gossipcop_v4_no_ignore_en.tsv', sep='\t')
+    politifact_df = pd.read_csv('./data/politifact{}_no_ignore_en.tsv'.format(args.version), sep='\t')
+    gossipcop_df = pd.read_csv('./data/gossipcop{}_no_ignore_en.tsv'.format(args.version), sep='\t')
 
-    if args.filter_both:
-        img_path_politifact_real = './data/politifact_v4/news_images/real'
-        img_path_politifact_fake = './data/politifact_v4/news_images/fake'
+    if args.filter_comments or args.filter_images:
+        img_path_politifact_real = './data/politifact{}/news_images/real'.format(args.version)
+        img_path_politifact_fake = './data/politifact{}/news_images/fake'.format(args.version)
 
-        img_path_gossipcop_real = './data/gossipcop_v4/news_images/real'
-        img_path_gossipcop_fake = './data/gossipcop_v4/news_images/fake'
+        img_path_gossipcop_real = './data/gossipcop{}/news_images/real'.format(args.version)
+        img_path_gossipcop_fake = './data/gossipcop{}/news_images/fake'.format(args.version)
 
-        # Remove cases where num comments string (comments seperated by ::) contains at least one comment
-        politifact_df = politifact_df[politifact_df['comments'].str.count('::') > 0]
-        gossipcop_df = gossipcop_df[gossipcop_df['comments'].str.count('::') > 0]
+        if args.filter_comments:
+            # Remove cases where num comments string (comments seperated by ::) contains at least one comment
+            politifact_df = politifact_df[politifact_df['comments'].str.count('::') > 0]
+            gossipcop_df = gossipcop_df[gossipcop_df['comments'].str.count('::') > 0]
 
-        politifact_df['id'] = politifact_df['id'].astype(str)
-        gossipcop_df['id'] = gossipcop_df['id'].astype(str)
+        if args.filter_images:
+            politifact_df['id'] = politifact_df['id'].astype(str)
+            gossipcop_df['id'] = gossipcop_df['id'].astype(str)
 
-        # Remove cases where there is no associated article image collected in the folders (match by id)
-        politifact_df = politifact_df[politifact_df['id'].isin([f.split('_')[1].split('.')[0] for f in os.listdir(img_path_politifact_real)] + [f.split('_')[1].split('.')[0] for f in os.listdir(img_path_politifact_fake)])]
-        gossipcop_df = gossipcop_df[gossipcop_df['id'].isin([f.split('_')[1].split('.')[0] for f in os.listdir(img_path_gossipcop_real)] + [f.split('_')[1].split('.')[0] for f in os.listdir(img_path_gossipcop_fake)])]
+            # Remove cases where there is no associated article image collected in the folders (match by id)
+            politifact_df = politifact_df[politifact_df['id'].isin([f.split('_')[1].split('.')[0] for f in os.listdir(img_path_politifact_real)] + [f.split('_')[1].split('.')[0] for f in os.listdir(img_path_politifact_fake)])]
+            gossipcop_df = gossipcop_df[gossipcop_df['id'].isin([f.split('_')[1].split('.')[0] for f in os.listdir(img_path_gossipcop_real)] + [f.split('_')[1].split('.')[0] for f in os.listdir(img_path_gossipcop_fake)])]
 
         # Write to new tsv files
-        politifact_df.to_csv('./data/politifact_v4_no_ignore_en_reduced.tsv', sep='\t', index=False)
-        gossipcop_df.to_csv('./data/gossipcop_v4_no_ignore_en_reduced.tsv', sep='\t', index=False)
+        politifact_df.to_csv('./data/politifact{}_no_ignore_en_reduced.tsv'.format(args.version), sep='\t', index=False)
+        gossipcop_df.to_csv('./data/gossipcop{}_no_ignore_en_reduced.tsv'.format(args.version), sep='\t', index=False)
+        
     elif args.balance_g:
         # Undersample the true news articles
         num_fake = len(gossipcop_df[gossipcop_df['label'] == 0])
@@ -47,4 +52,4 @@ if __name__ == '__main__':
 
         print(balanced_df['label'].value_counts())
         
-        balanced_df.to_csv('./data/gossipcop_no_ignore_en_balanced.tsv', sep='\t', index=False)
+        balanced_df.to_csv('./data/gossipcop{}_no_ignore_en_balanced.tsv'.format(args.version), sep='\t', index=False)

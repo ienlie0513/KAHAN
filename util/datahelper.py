@@ -98,7 +98,6 @@ def get_data(data_dir, data_source, filename_end=''):
 
 
 def get_preprocessed_data(data_dir, data_source, model_type, exclude_with_no_image=False, kahan=False, use_ihan=False, use_clip=False):
-    loaded_data = None
     try:
         path = ''
         if use_clip:
