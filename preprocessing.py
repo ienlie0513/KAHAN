@@ -529,13 +529,13 @@ if __name__ == '__main__':
     save_path = ''
 
     if args.kahan and args.exclude_with_no_images:
-        save_path = '{}/{}/preprocessed_kahan_exclude_with_no_image.pt'.format(config['data_dir'], config['data_source'])
+        save_path = '{}/{}/preprocessed_kahan_exclude_with_no_image.pt'.format(config['data_dir'], args.platform)
     elif args.kahan:
-        save_path = '{}/{}/preprocessed_kahan.pt'.format(config['data_dir'], config['data_source'])
+        save_path = '{}/{}/preprocessed_kahan.pt'.format(config['data_dir'], args.platform)
     elif args.use_clip:
-        save_path = '{}/{}/preprocessed_clip.pt'.format(config['data_dir'], config['data_source'])
+        save_path = '{}/{}/preprocessed_clip.pt'.format(config['data_dir'], args.platform)
     else:
-       save_path = '{}/{}/preprocessed_{}.pt'.format(config['data_dir'], config['data_source'], args.cnn)
+       save_path = '{}/{}/preprocessed_{}.pt'.format(config['data_dir'], args.platform, args.cnn)
 
     torch.save({
         'contents': contents,
