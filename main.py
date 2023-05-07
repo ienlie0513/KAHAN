@@ -76,20 +76,20 @@ def init_archive(config, model_type, dimred_method, fusion_method, hid, exclude_
 
     return log, img_dir, ckpt_dir
 
-def write_result_to_csv(row, csvfile):
+def write_result_to_csv(row, results_csv):
     file_exists = os.path.exists(results_csv)
 
-    with open(csvfile, 'a', newline='') as file:
+    with open(results_csv, 'a', newline='') as csvfile:
         csv_writer = csv.writer(csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 
         if not file_exists:
-            fcntl.flock(file, fcntl.LOCK_EX)
+            fcntl.flock(csvfile, fcntl.LOCK_EX)
             csv_writer.writerow(header)
-            fcntl.flock(file, fcntl.LOCK_UN)
+            fcntl.flock(csvfile, fcntl.LOCK_UN)
             
-        fcntl.flock(file, fcntl.LOCK_EX)
+        fcntl.flock(csvfile, fcntl.LOCK_EX)
         csv_writer.writerow(row)
-        fcntl.flock(file, fcntl.LOCK_UN)
+        fcntl.flock(csvfile, fcntl.LOCK_UN)
 
 if __name__ == '__main__':
 
