@@ -115,7 +115,7 @@ if __name__ == '__main__':
     config = None
     if args.platform.startswith('politifact'):
         config = json.load(open('./config_p.json'))
-    elif args.platform == 'gossipcop':
+    elif args.platform.startswith('gossipcop'):
         config = json.load(open('./config_g.json'))
     else:
         raise ValueError('Invalid platform argument')
