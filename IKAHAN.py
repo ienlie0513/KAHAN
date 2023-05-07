@@ -93,7 +93,7 @@ class AttentionalBiRNN(nn.Module):
         ##print('packed_batch: {} total_length: {}'.format(packed_batch.data.size(), total_length))
         rnn_output, _ = self.rnn(packed_batch)
         ##print('rnn_output: {}'.format(rnn_output.data.size()))
-        enc_output, len_s = torch.nn.utils.rnn.pad_packed_sequence(rnn_output, batch_first=True, total_length=total_length)
+        enc_output, len_s = torch.nn.utils.rnn.pad_packed_sequence(rnn_output, batch_first=True, total_length=total_length.cpu())
         ##print('enc_output: {} len_s: {}'.format(enc_output.data.size(), len_s))
 
         enc_output = self.dropout(enc_output)
