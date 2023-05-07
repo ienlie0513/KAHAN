@@ -106,7 +106,7 @@ if __name__ == '__main__':
     parser.add_argument('--folds', type=int, default=3)
     parser.add_argument('--ihan', action='store_true')
     parser.add_argument('--clip', action='store_true')
-    parser.add_argument('--ent_att', action='store_true')
+    parser.add_argument('--ent_att', type=bool, default=False)
     parser.add_argument('--epochs', type=int, default=50)
     parser.add_argument('--results_csv', type=str, default='results.csv')
     args = parser.parse_args()
