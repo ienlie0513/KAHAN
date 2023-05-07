@@ -441,8 +441,13 @@ class IKAHAN(nn.Module):
     def forward(self, cnt_input, cmt_input, ent_input, clip_ent_input, img_input):
         # (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), (clip_ent, lk), img
         content_vec,_ = self.news(*cnt_input, *ent_input)
-        comment_vec,_ = self.comment(*cmt_input, *ent_input) if torch.equal(cmt_input[0], np.full((self.max_cmt, self.max_len), self.word2vec_cmt.key_to_index['_pad_'], dtype=int)) else (torch.ones(cmt_input[0].size(0), self.hid_size*2), torch.tensor([]))
-        image_vec = None
+
+        # checks if cmt_input is all pad
+        pad_value = self.word2vec_cmt.key_to_index['_pad_']
+        pad_tensor = torch.full_like(cmt_input[0], pad_value, device=cmt_input[0].device)
+        equal_tensors = torch.all(cmt_input[0] == pad_tensor)
+        
+        comment_vec, _ = self.comment(*cmt_input, *ent_input) if equal_tensors else (torch.ones(cmt_input[0].size(0), self.hid_size*2), torch.tensor([]))
 
         if self.use_han:
             image_vec = self.image(img_input, self.img_ent_att, *ent_input)
@@ -453,8 +458,6 @@ class IKAHAN(nn.Module):
                 image_vec = img_input
         else:
             image_vec = self.image(img_input)
-
-        out = None
 
         if self.is_kahan:
             if self.has_deep_classifier:
