@@ -334,7 +334,7 @@ class CHAN(nn.Module):
         # cat all comments in the batch
         input, lc = self._reorder_input(input, le, lsb, lc)
 
-        print('Input: {} {}'.format(input.size(), type(input)))
+        print('Input: {} {} {}'.format(input, input.size(), type(input)))
 
         # (# of comments in the batch, max_length, emb_size)
         emb_w = self.embedding(input)
@@ -437,7 +437,7 @@ class IKAHAN(nn.Module):
     def attn_map(self, cnt_input, cmt_input, ent_input):
         # (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk)
         content_vec, n_ent_attn = self.news(*cnt_input, *ent_input)
-        comment_vec, c_ent_attn = self.comment(*cmt_input, *ent_input) if torch.equal(cmt_input[0], np.full((self.max_cmt, self.max_len), self.word2vec_cmt.key_to_index['_pad_'], dtype=int)) else (torch.ones(cmt_input[0].size(0), self.hid_size*2), torch.tensor([]))
+        comment_vec, c_ent_attn = self.comment(*cmt_input, *ent_input) if torch.equal(cmt_input[0], np.full((self.max_cmt, self.max_len), self.word2vec_cmt.key_to_index['_pad_'], dtype=int)) else (torch.ones(cmt_input[0].size(0), self.hid_size*2).to(self.device), torch.tensor([], device=self.device))
 
         out = torch.cat((content_vec, comment_vec), dim=1)
         out = self.lin_cat(out)
@@ -452,10 +452,10 @@ class IKAHAN(nn.Module):
 
         # checks if cmt_input is all pad
         pad_value = self.word2vec_cmt.key_to_index['_pad_']
-        pad_tensor = torch.full_like(cmt_input[0], pad_value, device=cmt_input[0].device)
+        pad_tensor = torch.full_like(cmt_input[0], pad_value, device=self.device)
         equal_tensors = torch.all(cmt_input[0] == pad_tensor)
         
-        comment_vec, _ = self.comment(*cmt_input, *ent_input) if equal_tensors else (torch.ones(cmt_input[0].size(0), self.hid_size*2).to(self.device), torch.tensor([]))
+        comment_vec, _ = self.comment(*cmt_input, *ent_input).to(self.device) if equal_tensors else (torch.ones(cmt_input[0].size(0), self.hid_size*2).to(self.device), torch.tensor([], device=self.device))
 
         if self.clip:
             if self.img_ent_att:
