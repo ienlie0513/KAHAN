@@ -109,6 +109,7 @@ if __name__ == '__main__':
     parser.add_argument('--ent_att', type=bool, default=False)
     parser.add_argument('--epochs', type=int, default=50)
     parser.add_argument('--results_csv', type=str, default='results.csv')
+    parser.add_argument('--lr', type=float, default=1e-4)
     args = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -179,7 +180,7 @@ if __name__ == '__main__':
             # training
             model = IKAHAN(config['num_class'], word2vec_cnt, word2vec_cmt, dimred_params, args.kahan, args.deep_classifier, args.fusion, device, args.ihan, args.clip, args.ent_att, config['image_preprocessing']['clip_embed_size'], config['word2vec_dim'], config['hid_size'], max_sent=config['max_sent'], max_len=config['max_len'], max_cmt=['max_cmt'], dropout=config['dropout'])
             train_accs, test_accs, train_losses, test_losses, model_name = trainIters(model, trainset, validset, train, evaluate,
-                epochs=args.epochs, learning_rate=config['lr'], batch_size=config['batch_size'], weight_decay=config['weight_decay'],
+                epochs=args.epochs, learning_rate=args.lr, batch_size=config['batch_size'], weight_decay=config['weight_decay'],
                 save_info=(fold, ckpt_dir), print_every=config['print_every'], device=device, log=log)
             show_result(train_accs, test_accs, train_losses, test_losses, save=(fold, img_dir, seed))
 
