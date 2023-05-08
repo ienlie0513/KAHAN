@@ -390,8 +390,10 @@ class DimentionalityReduction(nn.Module):
 
 class IKAHAN(nn.Module):
 
-    def __init__(self, num_class, word2vec_cnt, word2vec_cmt, dimred_params, kahan, deep_classifier, fusion_method, ihan=False, clip=False, img_ent_att=False, clip_emb_size=512, emb_size=100, hid_size=100, max_sent=50, max_len=120, max_cmt=50, dropout=0.3):
+    def __init__(self, num_class, word2vec_cnt, word2vec_cmt, dimred_params, kahan, deep_classifier, fusion_method, device, ihan=False, clip=False, img_ent_att=False, clip_emb_size=512, emb_size=100, hid_size=100, max_sent=50, max_len=120, max_cmt=50, dropout=0.3):
         super(IKAHAN, self).__init__()
+
+        self.device = device
 
         self.news = NHAN(word2vec_cnt, emb_size, hid_size, max_sent, dropout)
         self.comment = CHAN(word2vec_cmt, emb_size, hid_size, dropout)
@@ -453,7 +455,7 @@ class IKAHAN(nn.Module):
         pad_tensor = torch.full_like(cmt_input[0], pad_value, device=cmt_input[0].device)
         equal_tensors = torch.all(cmt_input[0] == pad_tensor)
         
-        comment_vec, _ = self.comment(*cmt_input, *ent_input) if equal_tensors else (torch.ones(cmt_input[0].size(0), self.hid_size*2), torch.tensor([]))
+        comment_vec, _ = self.comment(*cmt_input, *ent_input) if equal_tensors else (torch.ones(cmt_input[0].size(0), self.hid_size*2).to(self.device), torch.tensor([]))
 
         if self.clip:
             if self.img_ent_att:
