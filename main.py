@@ -185,7 +185,7 @@ if __name__ == '__main__':
             show_result(train_accs, test_accs, train_losses, test_losses, save=(fold, img_dir, seed))
 
             # evaluate
-            model = IKAHAN(config['num_class'], word2vec_cnt, word2vec_cmt, dimred_params, args.kahan, args.deep_classifier, args.fusion, device, args.ihan, args.clip, args.ent_att, device, config['image_preprocessing']['clip_embed_size'], config['word2vec_dim'], config['hid_size'], max_sent=config['max_sent'], max_len=config['max_len'], max_cmt=['max_cmt'], dropout=config['dropout']).to(device)
+            model = IKAHAN(config['num_class'], word2vec_cnt, word2vec_cmt, dimred_params, args.kahan, args.deep_classifier, args.fusion, device, args.ihan, args.clip, args.ent_att, config['image_preprocessing']['clip_embed_size'], config['word2vec_dim'], config['hid_size'], max_sent=config['max_sent'], max_len=config['max_len'], max_cmt=['max_cmt'], dropout=config['dropout']).to(device)
             model.load_state_dict(torch.load(model_name))
             _, acc, predicts, targets = evaluate(model, validset, device=device)
             acc, precision, recall, microf1, macrof1 = calculate_metrics(acc, targets, predicts, log=log)
