@@ -7,10 +7,11 @@ import numpy as np
 
 def length_to_cpu(length):
     # if not on cpu move it
-    if isinstance(length, int):
-        return length
-    else:
-        return length.cpu()
+    if isinstance(length, torch.Tensor):
+        if length.device != torch.device('cpu'):
+            length = length.cpu()
+        length = length.numpy()
+    return length
 
 class MaxPooling():
     def __init__(self, kernel_size):
