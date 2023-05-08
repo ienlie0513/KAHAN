@@ -76,7 +76,7 @@ def init_archive(config, model_type, dimred_method, fusion_method, hid, exclude_
 
     return log, img_dir, ckpt_dir
 
-def write_result_to_csv(row, results_csv):
+def write_result_to_csv(row, header, results_csv):
     file_exists = os.path.exists(results_csv)
 
     with open(results_csv, 'a', newline='') as csvfile:
@@ -151,7 +151,6 @@ if __name__ == '__main__':
 
     results_csv = args.results_csv
     header = ['DateTime', 'Platform', 'Model', 'Method', 'Fusion', 'Seeds', 'Folds', 'Epochs', 'Time', 'Accuracy', 'Precision', 'Recall', 'Micro F1', 'Macro F1']
-    write_result_to_csv(header, results_csv)
 
     for seed in SEEDS:
         print ('Seed %d start at %s' % (seed, datetime.now().strftime('%Y_%m_%d %H:%M:%S')))
@@ -219,9 +218,9 @@ if __name__ == '__main__':
     avg_last_score = np.mean(seed_avg_last_scores, axis=0)
     
     result_row_total = [now, args.platform, args.cnn, args.dimred, args.fusion, args.seeds, args.folds, args.epochs, *avg_total_score]
-    write_result_to_csv(result_row_total, results_csv)
+    write_result_to_csv(result_row_total, header, results_csv)
     result_row_last = [now, args.platform, args.cnn, args.dimred, args.fusion, args.seeds, args.folds, args.epochs, *avg_last_score]
-    write_result_to_csv(result_row_last, results_csv)
+    write_result_to_csv(result_row_last, header, results_csv)
 
     # log average score for all seeds to file and print to console
     log_and_print(

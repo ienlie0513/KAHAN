@@ -91,9 +91,14 @@ class AttentionalBiRNN(nn.Module):
     
     def forward(self, packed_batch, total_length):
         ##print('packed_batch: {} total_length: {}'.format(packed_batch.data.size(), total_length))
+
+        # if device not CPU send total_length to CPU
+        if not isinstance(total_length, int):
+            total_length = total_length.cpu()
+
         rnn_output, _ = self.rnn(packed_batch)
         ##print('rnn_output: {}'.format(rnn_output.data.size()))
-        enc_output, len_s = torch.nn.utils.rnn.pad_packed_sequence(rnn_output, batch_first=True, total_length=total_length.cpu())
+        enc_output, len_s = torch.nn.utils.rnn.pad_packed_sequence(rnn_output, batch_first=True, total_length=total_length)
         ##print('enc_output: {} len_s: {}'.format(enc_output.data.size(), len_s))
 
         enc_output = self.dropout(enc_output)
@@ -325,6 +330,8 @@ class CHAN(nn.Module):
     def forward(self, input, le, lsb, lc, ent_embs, lk):
         # cat all comments in the batch
         input, lc = self._reorder_input(input, le, lsb, lc)
+
+        print('Input: {} {}'.format(input.size(), type(input)))
 
         # (# of comments in the batch, max_length, emb_size)
         emb_w = self.embedding(input)
