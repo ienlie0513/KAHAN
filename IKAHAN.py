@@ -232,7 +232,6 @@ class NHAN(nn.Module):
             sent_emb = F.pad(sent_emb, (0, 0, 0, self.max_sent-len(sent_emb)))
             reorder_output.append(sent_emb.unsqueeze(0))
             prev_idx += i
-
         return torch.cat(reorder_output)
 
     def forward(self, input, ln, ls, ent_embs, lk):
@@ -437,7 +436,10 @@ class IKAHAN(nn.Module):
     def attn_map(self, cnt_input, cmt_input, ent_input):
         # (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk)
         content_vec, n_ent_attn = self.news(*cnt_input, *ent_input)
+        content_vec.to(self.device)
+
         comment_vec, c_ent_attn = self.comment(*cmt_input, *ent_input) if torch.equal(cmt_input[0], np.full((self.max_cmt, self.max_len), self.word2vec_cmt.key_to_index['_pad_'], dtype=int)) else (torch.ones(cmt_input[0].size(0), self.hid_size*2).to(self.device), torch.tensor([], device=self.device))
+        comment_vec.to(self.device)
 
         out = torch.cat((content_vec, comment_vec), dim=1)
         out = self.lin_cat(out)
@@ -448,25 +450,27 @@ class IKAHAN(nn.Module):
 
     def forward(self, cnt_input, cmt_input, ent_input, clip_ent_input, img_input):
         # (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), (clip_ent, lk), img
-        content_vec,_ = self.news(*cnt_input, *ent_input).to(self.device)
+        content_vec,_ = self.news(*cnt_input, *ent_input)
+        content_vec.to(self.device)
 
         # checks if cmt_input is all pad
         pad_value = self.word2vec_cmt.key_to_index['_pad_']
         pad_tensor = torch.full_like(cmt_input[0], pad_value, device=self.device)
         equal_tensors = torch.all(cmt_input[0] == pad_tensor)
         
-        comment_vec, _ = self.comment(*cmt_input, *ent_input).to(self.device) if equal_tensors else (torch.ones(cmt_input[0].size(0), self.hid_size*2).to(self.device), torch.tensor([], device=self.device))
+        comment_vec, _ = self.comment(*cmt_input, *ent_input) if equal_tensors else (torch.ones(cmt_input[0].size(0), self.hid_size*2), torch.tensor([]))
+        comment_vec.to(self.device)
 
         if self.clip:
             if self.img_ent_att:
-                image_vec = self.img_att(img_input, *clip_ent_input)
+                image_vec = self.img_att(img_input, *clip_ent_input).to(self.device)
             else:
                 image_vec = img_input
         else:
             if self.ihan:
                 image_vec = self.image(img_input, self.img_ent_att, *ent_input).to(self.device)
             else:
-                image_vec = self.image(img_input)
+                image_vec = self.image(img_input).to(self.device)
 
         if self.kahan:
             out = torch.cat((content_vec, comment_vec), dim=1)
