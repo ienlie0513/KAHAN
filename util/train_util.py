@@ -95,8 +95,8 @@ def save_model(model, save_info, acc, log):
     fold, ckpt_dir = save_info
     now = datetime.now().strftime("%Y_%m_%d %H:%M:%S")
     model_name = "{}/model_{}.ckpt".format(ckpt_dir, fold)
-    tqdm.write("Model {} registered but not saved at {} with acc: {:.4f}".format(model_name, now, acc))
-    log.write("Model {} registered but not saved at {} with acc: {:.4f}\n".format(model_name, now, acc))
-    #torch.save(model.state_dict(), model_name)
+    tqdm.write("Model {} saved at {} with acc: {:.4f}".format(model_name, now, acc))
+    log.write("Model {} saved at {} with acc: {:.4f}\n".format(model_name, now, acc))
+    torch.save(model.state_dict(), model_name)
     
     return model_name
