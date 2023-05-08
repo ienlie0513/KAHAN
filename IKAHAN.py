@@ -448,7 +448,7 @@ class IKAHAN(nn.Module):
 
     def forward(self, cnt_input, cmt_input, ent_input, clip_ent_input, img_input):
         # (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), (clip_ent, lk), img
-        content_vec,_ = self.news(*cnt_input, *ent_input)
+        content_vec,_ = self.news(*cnt_input, *ent_input).to(self.device)
 
         # checks if cmt_input is all pad
         pad_value = self.word2vec_cmt.key_to_index['_pad_']
@@ -464,7 +464,7 @@ class IKAHAN(nn.Module):
                 image_vec = img_input
         else:
             if self.ihan:
-                image_vec = self.image(img_input, self.img_ent_att, *ent_input)
+                image_vec = self.image(img_input, self.img_ent_att, *ent_input).to(self.device)
             else:
                 image_vec = self.image(img_input)
 
