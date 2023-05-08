@@ -5,6 +5,13 @@ from torch.utils import data
 
 import numpy as np
 
+def length_to_cpu(length):
+    # if not on cpu move it
+    if isinstance(length, int):
+        return length
+    else:
+        return length.cpu()
+
 class MaxPooling():
     def __init__(self, kernel_size):
         self.kernel_size = kernel_size
@@ -91,14 +98,9 @@ class AttentionalBiRNN(nn.Module):
     
     def forward(self, packed_batch, total_length):
         ##print('packed_batch: {} total_length: {}'.format(packed_batch.data.size(), total_length))
-
-        # if device not CPU send total_length to CPU
-        if not isinstance(total_length, int):
-            total_length = total_length.cpu()
-
         rnn_output, _ = self.rnn(packed_batch)
         ##print('rnn_output: {}'.format(rnn_output.data.size()))
-        enc_output, len_s = torch.nn.utils.rnn.pad_packed_sequence(rnn_output, batch_first=True, total_length=total_length)
+        enc_output, len_s = torch.nn.utils.rnn.pad_packed_sequence(rnn_output, batch_first=True, total_length=length_to_cpu(total_length))
         ##print('enc_output: {} len_s: {}'.format(enc_output.data.size(), len_s))
 
         enc_output = self.dropout(enc_output)
@@ -164,7 +166,7 @@ class IHAN(nn.Module):
         input, len_f = self._reorder_input(input, lc, lf)
         ##print('input: {} len_f: {}'.format(input.size(), len_f))
         # fine graied level
-        packed_fined = torch.nn.utils.rnn.pack_padded_sequence(input, len_f, batch_first=True, enforce_sorted=False)
+        packed_fined = torch.nn.utils.rnn.pack_padded_sequence(input, length_to_cpu(len_f), batch_first=True, enforce_sorted=False)
         ##print('packed_fined: {} dtype: {}'.format(packed_fined.data.size(), packed_fined.data.dtype))
         fine_embs = self.fine(packed_fined, input.size(1))
         ##print('fine_embs: {}'.format(fine_embs.size()))
@@ -188,7 +190,7 @@ class IHAN(nn.Module):
             coarse_embs = torch.cat((coarse_embs, ent_embs.transpose(0, 1)), dim=2) # (batch, max_sent, 3*hidden)
             ##print('sent_embs: {} '.format(sent_embs.size()))
 
-        packed_coarse = torch.nn.utils.rnn.pack_padded_sequence(coarse_embs, lc, batch_first=True, enforce_sorted=False)
+        packed_coarse = torch.nn.utils.rnn.pack_padded_sequence(coarse_embs, length_to_cpu(lc), batch_first=True, enforce_sorted=False)
         ##print('packed_coarse: {}'.format(packed_coarse.data.size()))
         image_vec = self.coarse(packed_coarse, coarse_embs.size(1))
         ##print('image_vec: {}'.format(image_vec.size()))
@@ -242,7 +244,7 @@ class NHAN(nn.Module):
         emb_w = self.embedding(input) 
         ##print('emb_w: {} '.format(emb_w.size()))
         
-        packed_sents = torch.nn.utils.rnn.pack_padded_sequence(emb_w, ls, batch_first=True, enforce_sorted=False)
+        packed_sents = torch.nn.utils.rnn.pack_padded_sequence(emb_w, length_to_cpu(ls), batch_first=True, enforce_sorted=False)
         ##print('packed_sents: {} dtype {} '.format(packed_sents.data.size(), packed_sents.data.dtype))
         sent_embs = self.word(packed_sents, emb_w.size(1))
         ##print('sent_embs (0): {} '.format(sent_embs.size()))
@@ -267,7 +269,7 @@ class NHAN(nn.Module):
         ##print('sent_embs: {} '.format(sent_embs.size()))
 
         ##print('sent_embs: {} num sentences (ln) {} '.format(sent_embs.size(), ln))
-        packed_news = torch.nn.utils.rnn.pack_padded_sequence(sent_embs, ln, batch_first=True, enforce_sorted=False)
+        packed_news = torch.nn.utils.rnn.pack_padded_sequence(sent_embs, length_to_cpu(ln), batch_first=True, enforce_sorted=False)
         ##print('packed_news: {} '.format(packed_news.data.size()))
         content_vec = self.sent(packed_news, sent_embs.size(1))
         ##print('content_vec: {} '.format(content_vec.size()))
@@ -336,13 +338,13 @@ class CHAN(nn.Module):
         # (# of comments in the batch, max_length, emb_size)
         emb_w = self.embedding(input)
 
-        packed_cmts = torch.nn.utils.rnn.pack_padded_sequence(emb_w, lc, batch_first=True, enforce_sorted=False)
+        packed_cmts = torch.nn.utils.rnn.pack_padded_sequence(emb_w, length_to_cpu(lc), batch_first=True, enforce_sorted=False)
         post_embs = self.word(packed_cmts, emb_w.size(1))
         #print('post_embs: {} '.format(post_embs.size()))
 
         post_embs, lsb = self._reorder_word_output(post_embs, le, lsb)
         
-        packed_sb = torch.nn.utils.rnn.pack_padded_sequence(post_embs, lsb, batch_first=True, enforce_sorted=False)
+        packed_sb = torch.nn.utils.rnn.pack_padded_sequence(post_embs, length_to_cpu(lsb), batch_first=True, enforce_sorted=False)
         #print('packed_sb: {} '.format(packed_sb.data.size()))
         sb_embs = self.post(packed_sb, post_embs.size(1))
 
@@ -363,7 +365,7 @@ class CHAN(nn.Module):
         sb_embs = torch.cat((sb_embs, ent_embs.transpose(0, 1)), dim=2) # (batch, M, 3*hidden)
         #print('sb_embs: {} le size: {} le {}'.format(sb_embs.size(), le.size(), le))
 
-        packed_news = torch.nn.utils.rnn.pack_padded_sequence(sb_embs, le, batch_first=True, enforce_sorted=False)
+        packed_news = torch.nn.utils.rnn.pack_padded_sequence(sb_embs, length_to_cpu(le), batch_first=True, enforce_sorted=False)
         comment_vec = self.subevent(packed_news, sb_embs.size(1))
 
         return comment_vec, ent_attn # (batch, hid_size*2)
