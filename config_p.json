@@ -23,7 +23,6 @@
     "word2vec_dim": 100,
     "wiki2vec": "./word2vec/enwiki_20180420_100d.pkl",
     "wiki2vec_dim": 100,
-    "device": "cuda",
     "image_preprocessing": {
         "resnet50_embed_size": 100352,
         "vgg19_embed_size": 25088,
