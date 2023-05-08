@@ -65,11 +65,11 @@ if __name__ == '__main__':
     stats_df = pd.DataFrame({
         'Platform': ['Politifact', 'Gossipcop'],
         '# Real news': [politifact_stats[0], gossipcop_stats[0]],
-        '# R Images': [politifact_stats[3], gossipcop_stats[3]],
+        #'# R Images': [politifact_stats[3], gossipcop_stats[3]],
         '# Fake news': [politifact_stats[1], gossipcop_stats[1]],
-        '# F Images': [politifact_stats[4], gossipcop_stats[4]],
+        #'# F Images': [politifact_stats[4], gossipcop_stats[4]],
         '# Total news': [politifact_stats[2], gossipcop_stats[2]],
-        '# Total news images' : [politifact_stats[5], gossipcop_stats[5]],
+        #'# Total news images' : [politifact_stats[5], gossipcop_stats[5]],
         'avg. # comments per news': [round(politifact_stats[6]), round(gossipcop_stats[6])],
         'avg. # entities per news': [round(politifact_stats[7]), round(gossipcop_stats[7])],
         'avg. # entity claims per news': [round(politifact_entity_claims_stats), round(gossipcop_entity_claims_stats)]
