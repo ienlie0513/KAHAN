@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils import data
 
+print('torch version: ', torch.__version__)
+
 import numpy as np
 
 def length_to_cpu(length):
@@ -494,6 +496,7 @@ class IKAHAN(nn.Module):
         if not self.deep_classifier:        
             out = self.lin_cat(out)
             out = self.relu(out)
+
         out = self.lin_out(out)
 
         return out
