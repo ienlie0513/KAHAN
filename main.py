@@ -44,7 +44,7 @@ def init_archive(config, model_type, dimred_method, fusion_method, hid, exclude_
             root = './model_ckpts/{}_clip_ea_{}_{}'.format(config['data_source'], fusion_method, now)
         else:
             root = './model_ckpts/{}_clip_{}_{}'.format(config['data_source'], fusion_method, now)
-    if ihan:
+    elif ihan:
         if ent_att:
             root = './model_ckpts/{}_{}_ihan_ea_{}_{}'.format(config['data_source'], model_type, fusion_method, now)
         else:

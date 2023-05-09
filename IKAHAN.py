@@ -117,11 +117,12 @@ class AttentionalBiRNN(nn.Module):
 
 # image hierachical attention network
 class IHAN(nn.Module):
-    def __init__(self, emb_size=100, hid_size=100, dropout=0.3):
+    def __init__(self, emb_size=100, hid_size=100, use_attention=True, dropout=0.3):
         super(IHAN, self).__init__()
-
-        self.fine = AttentionalBiRNN(emb_size, hid_size, dropout=dropout)
-        self.coarse = AttentionalBiRNN(hid_size*2+hid_size//2, hid_size, dropout=dropout)
+        self.fine = AttentionalBiRNN(emb_size, hid_size, dropout=dropout) 
+        self.use_attention = use_attention
+        course_input_size = hid_size*2+hid_size//2 if use_attention else hid_size*2
+        self.coarse = AttentionalBiRNN(course_input_size, hid_size, dropout=dropout)
 
         self.IME_attn = nn.MultiheadAttention(hid_size*2, 4)
         self.ent_lin = nn.Linear(hid_size*2, hid_size//2)
@@ -161,7 +162,7 @@ class IHAN(nn.Module):
 
         # return reordered_output
 
-    def forward(self, input, use_attention, ent_embs, lk):
+    def forward(self, input, ent_embs, lk):
         lc, lf = self.generate_lengths(input)
         ##print('input: {} lf: {} lc: {}'.format(input.shape, lf.shape, lc.shape))
         input, len_f = self._reorder_input(input, lc, lf)
@@ -175,7 +176,7 @@ class IHAN(nn.Module):
         coarse_embs = self._reorder_fine_output(fine_embs, lc)
         ##print('coarse_embs: {}'.format(coarse_embs.size()))
 
-        if use_attention:
+        if self.use_attention:
             ## mask
             idxes = torch.arange(0, ent_embs.size(1), out=ent_embs.data.new(ent_embs.size(1))).unsqueeze(1)
             mask = (idxes>=lk.unsqueeze(0).to(idxes.device)).t() # (batch, max_ent)
@@ -328,45 +329,63 @@ class CHAN(nn.Module):
             prev_idx += i
 
         return torch.cat(reorder_output)
+    
+    def _filter_empty_cmts(self, mask, input, le, lsb, lc, ent_embs, lk):
+        idx = mask.nonzero(as_tuple=True)[0]
+
+        # filter the input comments and lengths using the index array
+        input_filtered = input[idx]
+        le_filtered = le[idx]
+        lsb_filtered = lsb[idx]
+        lc_filtered = lc[idx]
+        ent_embs_filtered = ent_embs[idx]
+        lk_filtered = lk[idx]
+
+        return input_filtered, le_filtered, lsb_filtered, lc_filtered, ent_embs_filtered, lk_filtered
+
  
     def forward(self, input, le, lsb, lc, ent_embs, lk):
-        # cat all comments in the batch
-        input, lc = self._reorder_input(input, le, lsb, lc)
+        # non empty comments mask
+        non_empty_mask = le.gt(0)
 
-        print('Input: {} {} {}'.format(input, input.size(), type(input)))
+        # return filtered arguments so we omitt processing of empty comments
+        input_flt, le_flt, lsb_flt, lc_flt, ent_embs_flt, lk_flt = self._filter_empty_cmts(non_empty_mask, input, le, lsb, lc, ent_embs, lk)
+        input_flt, lc_flt = self._reorder_input(input_flt, le_flt, lsb_flt, lc_flt)
 
         # (# of comments in the batch, max_length, emb_size)
-        emb_w = self.embedding(input)
-
-        packed_cmts = torch.nn.utils.rnn.pack_padded_sequence(emb_w, lc, batch_first=True, enforce_sorted=False)
+        emb_w = self.embedding(input_flt.long())
+        packed_cmts = torch.nn.utils.rnn.pack_padded_sequence(emb_w, lc_flt, batch_first=True, enforce_sorted=False)
         post_embs = self.word(packed_cmts, emb_w.size(1))
-        #print('post_embs: {} '.format(post_embs.size()))
 
-        post_embs, lsb = self._reorder_word_output(post_embs, le, lsb)
-        
-        packed_sb = torch.nn.utils.rnn.pack_padded_sequence(post_embs, lsb, batch_first=True, enforce_sorted=False)
-        #print('packed_sb: {} '.format(packed_sb.data.size()))
+        post_embs, lsb_flt = self._reorder_word_output(post_embs, le_flt, lsb_flt)
+
+        packed_sb = torch.nn.utils.rnn.pack_padded_sequence(post_embs, lsb_flt, batch_first=True, enforce_sorted=False)
         sb_embs = self.post(packed_sb, post_embs.size(1))
-
-        sb_embs = self._reorder_post_output(sb_embs, le)
+        sb_embs = self._reorder_post_output(sb_embs, le_flt)
 
         # mask
-        idxes = torch.arange(0, ent_embs.size(1), out=ent_embs.data.new(ent_embs.size(1))).unsqueeze(1)
-        mask = (idxes>=lk.unsqueeze(0).to(idxes.device)).t() # (batch, max_ent)
+        idxes = torch.arange(0, ent_embs_flt.size(1), out=ent_embs_flt.data.new(ent_embs_flt.size(1))).unsqueeze(1)
+        mask = (idxes>=lk_flt.unsqueeze(0).to(idxes.device)).t() # (batch, max_ent)
 
         # subevent, entity, entity attention, get weighted ent_embed
         # Q sb: (batch, M, 2*hidden)
         # V, K entity:(batch, max_ent, 2*hidden)
-        ent_embs, ent_attn = self.SEE_attn(sb_embs.transpose(0, 1), ent_embs.transpose(0, 1), ent_embs.transpose(0, 1), key_padding_mask=mask)
-        ent_embs = self.ent_lin(ent_embs) 
-        ent_embs = self.relu(ent_embs)
+        ent_embs_flt, ent_attn_flt = self.SEE_attn(sb_embs.transpose(0, 1), ent_embs_flt.transpose(0, 1), ent_embs_flt.transpose(0, 1), key_padding_mask=mask)
+        ent_embs_flt = self.ent_lin(ent_embs_flt) 
+        ent_embs_flt = self.relu(ent_embs_flt)
 
         # cat weighted ent_embed to sb_embeds
-        sb_embs = torch.cat((sb_embs, ent_embs.transpose(0, 1)), dim=2) # (batch, M, 3*hidden)
-        #print('sb_embs: {} le size: {} le {}'.format(sb_embs.size(), le.size(), le))
+        sb_embs = torch.cat((sb_embs, ent_embs_flt.transpose(0, 1)), dim=2) # (batch, M, 3*hidden)
 
-        packed_news = torch.nn.utils.rnn.pack_padded_sequence(sb_embs, length_to_cpu(le), batch_first=True, enforce_sorted=False)
-        comment_vec = self.subevent(packed_news, sb_embs.size(1))
+        packed_news = torch.nn.utils.rnn.pack_padded_sequence(sb_embs, length_to_cpu(le_flt), batch_first=True, enforce_sorted=False)
+        comment_vec_flt = self.subevent(packed_news, sb_embs.size(1))
+        
+        # reconstructing the original comment embeddings and attention by adding zero padding to make a 
+        comment_vec = torch.zeros(input.size(0), comment_vec_flt.size(1)).to(comment_vec_flt.device)
+        ent_attn = torch.zeros(input.size(0), ent_attn_flt.size(1), ent_attn_flt.size(2)).to(ent_attn_flt.device)
+
+        comment_vec[non_empty_mask] = comment_vec_flt
+        ent_attn[non_empty_mask] = ent_attn_flt
 
         return comment_vec, ent_attn # (batch, hid_size*2)
 
@@ -396,7 +415,7 @@ class IKAHAN(nn.Module):
 
         self.news = NHAN(word2vec_cnt, emb_size, hid_size, max_sent, dropout)
         self.comment = CHAN(word2vec_cmt, emb_size, hid_size, dropout)
-        self.image = IHAN(emb_size, hid_size, dropout) if ihan else DimentionalityReduction(hid_size*2, **dimred_params)
+        self.image = IHAN(emb_size, hid_size, img_ent_att, dropout) if ihan else DimentionalityReduction(hid_size*2, **dimred_params)
         self.img_att = ImageAttention(clip_emb_size, 4)
 
         self.word2vec_cmt = word2vec_cmt
@@ -410,26 +429,20 @@ class IKAHAN(nn.Module):
         self.fusion_method = fusion_method
         self.ihan = ihan
         self.clip = clip
-        
         self.img_ent_att = img_ent_att
 
-        if self.deep_classifier:
-            if self.kahan:
-                self.lin_out = DeepFC(hid_size*4, [hid_size*2, hid_size], num_class, dropout=dropout)
-            else:
-                if self.clip:
-                    self.lin_out = DeepFC(hid_size*4 + clip_emb_size, [hid_size*2, hid_size], num_class, dropout=dropout)
-                else:
-                    self.lin_out = DeepFC(hid_size*6, [hid_size*2, hid_size], num_class, dropout=dropout)
+        if self.kahan:
+            in_dim = hid_size*4
         else:
-            if self.kahan:
-                self.lin_cat = nn.Linear(hid_size*4, hid_size*2)
+            if self.clip:
+                in_dim = hid_size*4 + clip_emb_size
             else:
-                if self.clip:
-                    self.lin_cat = nn.Linear(hid_size*4 + clip_emb_size, hid_size*2)
-                else:
-                    self.lin_cat = nn.Linear(hid_size*6, hid_size*2)
+                in_dim = hid_size*6
 
+        if self.deep_classifier:
+            self.lin_out = DeepFC(in_dim, [hid_size*2, hid_size], num_class, dropout=dropout)
+        else:
+            self.lin_cat = nn.Linear(in_dim, hid_size*2)
             self.lin_out = nn.Linear(hid_size*2, num_class)
             self.relu = nn.ReLU()
 
@@ -438,7 +451,8 @@ class IKAHAN(nn.Module):
         content_vec, n_ent_attn = self.news(*cnt_input, *ent_input)
         content_vec.to(self.device)
 
-        comment_vec, c_ent_attn = self.comment(*cmt_input, *ent_input) if torch.equal(cmt_input[0], np.full((self.max_cmt, self.max_len), self.word2vec_cmt.key_to_index['_pad_'], dtype=int)) else (torch.ones(cmt_input[0].size(0), self.hid_size*2).to(self.device), torch.tensor([], device=self.device))
+        # comment_vec, c_ent_attn = self.comment(*cmt_input, *ent_input) if not torch.equal(cmt_input[0], np.full((self.max_cmt, self.max_len), self.word2vec_cmt.key_to_index['_pad_'], dtype=int)) else (torch.ones(cmt_input[0].size(0), self.hid_size*2).to(self.device), torch.tensor([], device=self.device))
+        comment_vec, c_ent_attn = self.comment(*cmt_input, *ent_input) if all(cmt_input[1] > 0) else (torch.ones(cmt_input[0].size(0), self.hid_size*2).to(self.device), torch.tensor([], device=self.device))
         comment_vec.to(self.device)
 
         out = torch.cat((content_vec, comment_vec), dim=1)
@@ -450,16 +464,8 @@ class IKAHAN(nn.Module):
 
     def forward(self, cnt_input, cmt_input, ent_input, clip_ent_input, img_input):
         # (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk), (clip_ent, lk), img
-        content_vec,_ = self.news(*cnt_input, *ent_input)
-        content_vec.to(self.device)
-
-        # checks if cmt_input is all pad
-        pad_value = self.word2vec_cmt.key_to_index['_pad_']
-        pad_tensor = torch.full_like(cmt_input[0], pad_value, device=self.device)
-        equal_tensors = torch.all(cmt_input[0] == pad_tensor)
-        
-        comment_vec, _ = self.comment(*cmt_input, *ent_input) if equal_tensors else (torch.ones(cmt_input[0].size(0), self.hid_size*2), torch.tensor([]))
-        comment_vec.to(self.device)
+        content_vec = self.news(*cnt_input, *ent_input)[0].to(self.device)
+        comment_vec = self.comment(*cmt_input, *ent_input)[0].to(self.device)
 
         if self.clip:
             if self.img_ent_att:
@@ -468,7 +474,7 @@ class IKAHAN(nn.Module):
                 image_vec = img_input
         else:
             if self.ihan:
-                image_vec = self.image(img_input, self.img_ent_att, *ent_input).to(self.device)
+                image_vec = self.image(img_input, *ent_input).to(self.device)
             else:
                 image_vec = self.image(img_input).to(self.device)
 
