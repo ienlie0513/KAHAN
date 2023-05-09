@@ -37,30 +37,34 @@ def log_and_print(s, log):
 
 def init_archive(config, model_type, dimred_method, fusion_method, hid, exclude_with_no_image, ihan, kahan, deep_classifier, clip, ent_att):
     # create log file
-    root = ''
+    root = './model_ckpts/'
     hid = '' if not hid else hid
     if clip:
         if ent_att:
-            root = './model_ckpts/{}_clip_ea_{}_{}'.format(config['data_source'], fusion_method, now)
+            experiment = '{}_clip_ea_{}'.format(config['data_source'], fusion_method)
         else:
-            root = './model_ckpts/{}_clip_{}_{}'.format(config['data_source'], fusion_method, now)
+            experiment = '{}_clip_{}'.format(config['data_source'], fusion_method)
     elif ihan:
         if ent_att:
-            root = './model_ckpts/{}_{}_ihan_ea_{}_{}'.format(config['data_source'], model_type, fusion_method, now)
+            experiment = '{}_{}_ihan_ea_{}'.format(config['data_source'], model_type, fusion_method)
         else:
-            root = './model_ckpts/{}_{}_ihan_{}_{}'.format(config['data_source'], model_type, fusion_method, now)
+            experiment = '{}_{}_ihan_{}'.format(config['data_source'], model_type, fusion_method)
     elif kahan:
-        root = './model_ckpts/{}_kahan_{}'.format(config['data_source'], now)
+        experiment = '{}_kahan'.format(config['data_source'])
     elif exclude_with_no_image:
-        root = './model_ckpts/{}_excluded_no_img_cases_{}_{}{}_{}_{}'.format(config['data_source'], model_type, dimred_method, hid, fusion_method, now)
+        experiment = '{}_excluded_no_img_cases_{}_{}{}_{}'.format(config['data_source'], model_type, dimred_method, hid, fusion_method)
     else:
-        root = './model_ckpts/{}_{}_{}{}_{}_{}'.format(config['data_source'], model_type, dimred_method, hid, fusion_method, now)
+        experiment = '{}_{}_{}{}_{}'.format(config['data_source'], model_type, dimred_method, hid, fusion_method)
+
+    root += '{}_{}'.format(experiment, now)
 
     if deep_classifier:
-        root = ''.join([root, '_deep_classifier'])
+        root += ''.join([root, '_deep_classifier'])
         
     if not os.path.exists(root):
         os.makedirs(root)
+
+    print('Starting the following I-KAHAN configuration: {}'.format(experiment))
 
     log = open('{}/log.txt'.format(root), 'a')
     json.dump(config, log)
