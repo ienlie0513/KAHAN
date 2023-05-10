@@ -286,6 +286,7 @@ class CHAN(nn.Module):
     def __init__(self, word2vec, emb_size=100, hid_size=100, dropout=0.3):
         super(CHAN, self).__init__()
 
+        self.emb_size = emb_size
         self.embedding = nn.Embedding.from_pretrained(torch.tensor(word2vec.vectors))
         self.word = AttentionalBiRNN(emb_size, hid_size, dropout=dropout)
         self.post = AttentionalBiRNN(hid_size*2, hid_size, dropout=dropout)
@@ -353,6 +354,11 @@ class CHAN(nn.Module):
         # return filtered arguments so we omitt processing of empty comments
         input_flt, le_flt, lsb_flt, lc_flt, ent_embs_flt, lk_flt = self._filter_empty_cmts(non_empty_mask, input, le, lsb, lc, ent_embs, lk)
         input_flt, lc_flt = self._reorder_input(input_flt, le_flt, lsb_flt, lc_flt)
+
+        # if all comments are empty, return zero tensors
+        if input_flt.size(0) == 0:
+            print('All comments in batch empty: input_flt size is {}'.format(input_flt.size()))
+            return torch.zeros(input.size(0), self.emb_size*2), torch.tensor([])
 
         # (# of comments in the batch, max_length, emb_size)
         emb_w = self.embedding(input_flt.long())
@@ -482,20 +488,25 @@ class IKAHAN(nn.Module):
 
         if self.kahan:
             out = torch.cat((content_vec, comment_vec), dim=1)
+            if not self.deep_classifier:        
+                out = self.lin_cat(out)
+                out = self.relu(out)
         else:
             if self.clip:
                 out = torch.cat((content_vec, comment_vec, image_vec), dim=1)
+                if not self.deep_classifier:        
+                    out = self.lin_cat(out)
+                    out = self.relu(out)
             else:
                 if self.fusion_method == 'cat':
                     out = torch.cat((content_vec, comment_vec, image_vec), dim=1)
+                    if not self.deep_classifier:        
+                        out = self.lin_cat(out)
+                        out = self.relu(out)
                 elif self.fusion_method == 'elem_mult':
                     out = content_vec * comment_vec * image_vec
                 elif self.fusion_method == 'avg':
                     out = (content_vec + comment_vec + image_vec) / 3
-
-        if not self.deep_classifier:        
-            out = self.lin_cat(out)
-            out = self.relu(out)
 
         out = self.lin_out(out)
 
