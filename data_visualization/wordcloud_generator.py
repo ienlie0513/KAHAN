@@ -1,16 +1,11 @@
-import json
-from wordcloud import WordCloud, STOPWORDS
+from wordcloud import WordCloud
 import matplotlib.pyplot as plt
-from collections import defaultdict
 import pandas as pd
 import nltk
 
-# Download the stopwords list
-nltk.download('stopwords')
-from nltk.corpus import stopwords
+import argparse
 
-
-def create_wordcloud(text_list, title):
+def create_wordcloud(text_list, title, filename):
     # Combine all texts into a single string
     text = ' '.join(text_list)
 
@@ -34,24 +29,44 @@ def create_wordcloud(text_list, title):
     plt.title(title)
 
     # Store to file
-    plt.savefig(f'./data_visualization/wordclouds/{title}.png', dpi=300)
+    plt.savefig(f'./data_visualization/wordclouds/{filename}.png', dpi=300)
 
-gossiocop_df = pd.read_csv('./data/gossipcop_no_ignore_en.tsv', sep='\t')
-politifact_df = pd.read_csv('./data/politifact_v4_no_ignore_s.tsv', sep='\t')
+if __name__ == '__main__':
+    # Load the data
+    # Download the stopwords list
+    nltk.download('stopwords')
+    from nltk.corpus import stopwords
 
-print(len(gossiocop_df))
-print(len(politifact_df))
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--version', type=str, default='_v4', help='Dataset version to use')
+    parser.add_argument('--reduced', action='store_true', help='Use reduced dataset')
+    args = parser.parse_args()
 
-politifact_text_real = politifact_df[politifact_df['label'] == 1]['text'].tolist()
-politifact_text_fake = politifact_df[politifact_df['label'] == 0]['text'].tolist()
+    if args.reduced:
+        gossiocop_df = pd.read_csv('./data/gossipcop{}_no_ignore_en_reduced.tsv'.format(args.version), sep='\t')
+        politifact_df = pd.read_csv('./data/politifact{}_no_ignore_en_reduced.tsv'.format(args.version), sep='\t')
+    else:
+        gossiocop_df = pd.read_csv('./data/gossipcop{}_no_ignore_en.tsv'.format(args.version), sep='\t')
+        politifact_df = pd.read_csv('./data/politifact{}_no_ignore_en.tsv'.format(args.version), sep='\t')
 
-gossipcop_text_real = gossiocop_df[gossiocop_df['label'] == 1]['text'].tolist()
-gossipcop_text_fake = gossiocop_df[gossiocop_df['label'] == 0]['text'].tolist()
+    print(len(gossiocop_df))
+    print(len(politifact_df))
 
-create_wordcloud(politifact_text_real, 'PolitiFact Real News')
-create_wordcloud(politifact_text_fake, 'PolitiFact Fake News')
+    politifact_text_real = politifact_df[politifact_df['label'] == 1]['text'].tolist()
+    politifact_text_fake = politifact_df[politifact_df['label'] == 0]['text'].tolist()
 
-create_wordcloud(gossipcop_text_real, 'GossipCop Real News')
-create_wordcloud(gossipcop_text_fake, 'GossipCop Fake News')
+    gossipcop_text_real = gossiocop_df[gossiocop_df['label'] == 1]['text'].tolist()
+    gossipcop_text_fake = gossiocop_df[gossiocop_df['label'] == 0]['text'].tolist()
+
+    if args.reduced:
+        create_wordcloud(politifact_text_real, 'PolitiFact Real News', 'politifact{}_reduced_real'.format(args.version))
+        create_wordcloud(politifact_text_fake, 'PolitiFact Fake News', 'politifact{}_reduced_fake'.format(args.version))
+        create_wordcloud(gossipcop_text_real, 'GossipCop Real News', 'gossipcop{}_reduced_real'.format(args.version))
+        create_wordcloud(gossipcop_text_fake, 'GossipCop Fake News', 'gossipcop{}_reduced_fake'.format(args.version))
+    else:
+        create_wordcloud(politifact_text_real, 'PolitiFact Real News', 'politifact{}_real'.format(args.version))
+        create_wordcloud(politifact_text_fake, 'PolitiFact Fake News', 'politifact{}_fake'.format(args.version))
+        create_wordcloud(gossipcop_text_real, 'GossipCop Real News', 'gossipcop{}_real'.format(args.version))
+        create_wordcloud(gossipcop_text_fake, 'GossipCop Fake News', 'gossipcop{}_fake'.format(args.version))
 
 

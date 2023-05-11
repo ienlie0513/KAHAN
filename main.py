@@ -1,4 +1,3 @@
-import sys
 import os
 import json
 from datetime import datetime
@@ -19,6 +18,8 @@ from util.train_util import trainIters
 from util.util import show_result, plot_confusion_matrix, calculate_metrics
 from util.datahelper import KaDataset, get_preprocessed_data
 from IKAHAN import IKAHAN, train, evaluate
+
+import random
 
 now = datetime.now().strftime('%Y_%m_%d_%H:%M:%S')
 
@@ -156,16 +157,21 @@ if __name__ == '__main__':
     seed_avg_last_scores = []
 
     results_csv = args.results_csv
-    header = ['DateTime', 'Platform', 'Model', 'Method', 'Fusion', 'Seeds', 'Folds', 'Epochs', 'Time', 'Accuracy', 'Precision', 'Recall', 'Micro F1', 'Macro F1']
+    header = ['DateTime', 'Platform', 'Model', 'Method', 'Fusion', 'Seeds', 'Folds', 'Epochs', 'Time', 'ResultType', 'Accuracy', 'Precision', 'Recall', 'Micro F1', 'Macro F1']
 
     for seed in SEEDS:
         print ('Seed %d start at %s' % (seed, datetime.now().strftime('%Y_%m_%d %H:%M:%S')))
         log.write('Seed %d start at %s\n' % (seed, datetime.now().strftime('%Y_%m_%d %H:%M:%S')))
 
+        # set random state for reproducibility
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+
         # cross validation
         scores = []
 
-        skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=seed)
+        skf = StratifiedKFold(n_splits=args.folds, shuffle=True, random_state=seed)
         for fold, (train_idx, test_idx) in enumerate(skf.split(np.zeros(len(labels)), labels)):
             print ('Fold %d start at %s' % (fold, datetime.now().strftime('%Y_%m_%d %H:%M:%S')))
             log.write('Fold %d start at %s\n' % (fold, datetime.now().strftime('%Y_%m_%d %H:%M:%S')))
@@ -223,9 +229,9 @@ if __name__ == '__main__':
     avg_total_score = np.mean(seed_avg_total_scores, axis=0)
     avg_last_score = np.mean(seed_avg_last_scores, axis=0)
     
-    result_row_total = [now, args.platform, args.cnn, args.dimred, args.fusion, args.seeds, args.folds, args.epochs, *avg_total_score]
+    result_row_total = [now, args.platform, args.cnn, args.dimred, args.fusion, args.seeds, args.folds, args.epochs, elapsed_time, 'TotalAvg', *avg_total_score]
     write_result_to_csv(result_row_total, header, results_csv)
-    result_row_last = [now, args.platform, args.cnn, args.dimred, args.fusion, args.seeds, args.folds, args.epochs, *avg_last_score]
+    result_row_last = [now, args.platform, args.cnn, args.dimred, args.fusion, args.seeds, args.folds, args.epochs, elapsed_time, 'LastAvg', *avg_last_score]
     write_result_to_csv(result_row_last, header, results_csv)
 
     # log average score for all seeds to file and print to console
