@@ -98,7 +98,7 @@ def write_result_to_csv(row, header, results_csv):
 
 
 def summarize_experiment(avg_total_score, avg_last_score, highest_score, elapsed_time, cnn, dimred, fusion, hid, platform, exclude_with_no_image, kahan, deep_classifier, seeds, folds, ihan, clip, ent_att, epochs, results_csv, lr,):
-    header = ['DateTime', 'Platform', 'Classifier', 'KAHAN', 'Model', 'Method', 'Fusion', 'Seeds', 'Folds', 'Epochs', 'LR', 'Time', 'ResultType', 'Accuracy', 'Precision', 'Recall', 'Micro F1', 'Macro F1']
+    header = ['Begintime', 'Platform', 'Classifier', 'KAHAN', 'Embedding', 'Dim reduction method', 'Fusion', 'Seeds', 'Folds', 'Epochs', 'LR', 'Runtime', 'Result type', 'Accuracy', 'Precision', 'Recall', 'Micro F1', 'Macro F1']
     
     def create_row(classifier, kahan_column, model, method, fusion, result_type, scores):
         scores_as_strings = [str(score) for score in scores]
@@ -107,7 +107,7 @@ def summarize_experiment(avg_total_score, avg_last_score, highest_score, elapsed
     model = '--'
     kahan_column = '--'
     if kahan:
-        kahan_column, method, fusion = 'KAHAN', '--', 'cat'
+        kahan_column, method, fusion = 'Yes', '--', 'cat'
     elif ihan:
         model = cnn
         method = 'IHAN /w EA' if ent_att else 'IHAN'
@@ -122,9 +122,9 @@ def summarize_experiment(avg_total_score, avg_last_score, highest_score, elapsed
         model, method, fusion = cnn, dimred, fusion
 
     if deep_classifier:
-        classifier = 'Deep Classifier'
+        classifier = 'Deep'
     else:
-        classifier = 'Shallow Classifier'
+        classifier = 'Shallow'
 
     rows = [
         create_row(classifier, kahan_column, model, method, fusion, 'TotalAVG', avg_total_score),
