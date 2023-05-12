@@ -63,7 +63,7 @@ def init_archive(config, model_type, dimred_method, fusion_method, hid, exclude_
         root += ''.join([root, '_deep_classifier'])
         
     if not os.path.exists(root):
-        os.makedirs(root)
+        os.makedirs(root, exist_ok=True)
 
     print('Starting the following I-KAHAN configuration: {}'.format(experiment))
 
@@ -73,11 +73,11 @@ def init_archive(config, model_type, dimred_method, fusion_method, hid, exclude_
 
     # create img dir
     img_dir = '{}/img'.format(root)
-    os.makedirs(img_dir)
+    os.makedirs(img_dir, exist_ok=True)
 
     # create ckpt dir
     ckpt_dir = '{}/ckpts'.format(root)
-    os.makedirs(ckpt_dir)
+    os.makedirs(ckpt_dir, exist_ok=True)
 
     return log, img_dir, ckpt_dir
 
@@ -95,6 +95,45 @@ def write_result_to_csv(row, header, results_csv):
         fcntl.flock(csvfile, fcntl.LOCK_EX)
         csv_writer.writerow(row)
         fcntl.flock(csvfile, fcntl.LOCK_UN)
+
+
+def summarize_experiment(avg_total_score, avg_last_score, highest_score, elapsed_time, cnn, dimred, fusion, hid, platform, exclude_with_no_image, kahan, deep_classifier, seeds, folds, ihan, clip, ent_att, epochs, results_csv, lr,):
+    header = ['DateTime', 'Platform', 'Classifier', 'KAHAN', 'Model', 'Method', 'Fusion', 'Seeds', 'Folds', 'Epochs', 'LR', 'Time', 'ResultType', 'Accuracy', 'Precision', 'Recall', 'Micro F1', 'Macro F1']
+    
+    def create_row(classifier, kahan_column, model, method, fusion, result_type, scores):
+        scores_as_strings = [str(score) for score in scores]
+        return [now, platform, classifier, kahan_column, model, method, fusion, seeds, folds, epochs, lr, elapsed_time, result_type] + scores_as_strings
+
+    model = '--'
+    kahan_column = '--'
+    if kahan:
+        kahan_column, method, fusion = 'KAHAN', '--', 'cat'
+    elif ihan:
+        model = cnn
+        method = 'IHAN /w EA' if ent_att else 'IHAN'
+        fusion = 'cat'
+    elif clip:
+        model = 'CLIP /w EA' if ent_att else 'CLIP'
+        method = '--'
+        fusion = 'cat'
+    else:
+        if dimred == 'deepfc':
+            dimred = 'DNN {}'.format(hid)
+        model, method, fusion = cnn, dimred, fusion
+
+    if deep_classifier:
+        classifier = 'Deep Classifier'
+    else:
+        classifier = 'Shallow Classifier'
+
+    rows = [
+        create_row(classifier, kahan_column, model, method, fusion, 'TotalAVG', avg_total_score),
+        create_row(classifier, kahan_column, model, method, fusion, 'LastAVG', avg_last_score),
+        create_row(classifier, kahan_column, model, method, fusion, 'Highest', highest_score),
+    ]
+    
+    for row in rows:
+        write_result_to_csv(row, header, results_csv)
 
 if __name__ == '__main__':
 
@@ -155,9 +194,7 @@ if __name__ == '__main__':
     SEEDS = [i for i in range(args.seeds)]
     seed_avg_total_scores = []
     seed_avg_last_scores = []
-
-    results_csv = args.results_csv
-    header = ['DateTime', 'Platform', 'Model', 'Method', 'Fusion', 'Seeds', 'Folds', 'Epochs', 'Time', 'ResultType', 'Accuracy', 'Precision', 'Recall', 'Micro F1', 'Macro F1']
+    seed_highest_scores = []
 
     for seed in SEEDS:
         print ('Seed %d start at %s' % (seed, datetime.now().strftime('%Y_%m_%d %H:%M:%S')))
@@ -209,6 +246,8 @@ if __name__ == '__main__':
         # calculate last score
         last_score = scores[-1]
         seed_avg_last_scores.append(last_score)
+        # calculate highest score
+        seed_highest_scores.append(max(scores, key=lambda x: x[0]))
 
         # log average score of seed to file and print to console
         log_and_print(
@@ -228,11 +267,10 @@ if __name__ == '__main__':
     # calculate average score
     avg_total_score = np.mean(seed_avg_total_scores, axis=0)
     avg_last_score = np.mean(seed_avg_last_scores, axis=0)
-    
-    result_row_total = [now, args.platform, args.cnn, args.dimred, args.fusion, args.seeds, args.folds, args.epochs, elapsed_time, 'TotalAvg', *avg_total_score]
-    write_result_to_csv(result_row_total, header, results_csv)
-    result_row_last = [now, args.platform, args.cnn, args.dimred, args.fusion, args.seeds, args.folds, args.epochs, elapsed_time, 'LastAvg', *avg_last_score]
-    write_result_to_csv(result_row_last, header, results_csv)
+    # calculate highest score
+    highest_score = max(seed_highest_scores, key=lambda x: x[0])
+
+    summarize_experiment(avg_total_score, avg_last_score, highest_score, elapsed_time, **vars(args))
 
     # log average score for all seeds to file and print to console
     log_and_print(
@@ -244,5 +282,9 @@ if __name__ == '__main__':
         'Average last score for all seeds: acc: {:.4f}, precision: {:.4f}, recall: {:.4f}, micro f1: {:.4f}, macro f1: {:.4f}\n'.format(*avg_last_score),
         log
     )
-
+    # log highest score for all seeds to file and print to console
+    log_and_print(
+        'Highest score for all seeds: acc: {:.4f}, precision: {:.4f}, recall: {:.4f}, micro f1: {:.4f}, macro f1: {:.4f}\n'.format(*highest_score),
+        log
+    )
     log.close() 
