@@ -111,6 +111,7 @@ def get_preprocessed_data(data_dir, data_source, model_type, exclude_with_no_ima
         loaded_data = torch.load(path)
     except:
         print ("Preprocessed data not found. Please run preprocess.py first.")
+        exit()
 
     contents = []
     comments = []

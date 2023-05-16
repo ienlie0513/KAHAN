@@ -448,11 +448,12 @@ class IKAHAN(nn.Module):
                 in_dim = hid_size*6
 
         if self.deep_classifier:
-            self.lin_out = DeepFC(in_dim, [hid_size*2, hid_size], num_class, dropout=dropout)
+            self.lin_out = DeepFC(hid_size*2, [hid_size*2, hid_size], num_class, dropout=dropout)
         else:
-            self.lin_cat = nn.Linear(in_dim, hid_size*2)
             self.lin_out = nn.Linear(hid_size*2, num_class)
-            self.relu = nn.ReLU()
+        
+        self.lin_cat = nn.Linear(in_dim, hid_size*2)
+        self.relu = nn.ReLU()
 
     def attn_map(self, cnt_input, cmt_input, ent_input):
         # (cnt, ln, ls), (cmt, le, lsb, lc), (ent, lk)
@@ -487,22 +488,19 @@ class IKAHAN(nn.Module):
                 image_vec = self.image(img_input).to(self.device)
 
         if self.kahan:
-            out = torch.cat((content_vec, comment_vec), dim=1)
-            if not self.deep_classifier:        
-                out = self.lin_cat(out)
-                out = self.relu(out)
+            out = torch.cat((content_vec, comment_vec), dim=1)   
+            out = self.lin_cat(out)
+            out = self.relu(out)
         else:
             if self.clip:
-                out = torch.cat((content_vec, comment_vec, image_vec), dim=1)
-                if not self.deep_classifier:        
-                    out = self.lin_cat(out)
-                    out = self.relu(out)
+                out = torch.cat((content_vec, comment_vec, image_vec), dim=1)      
+                out = self.lin_cat(out)
+                out = self.relu(out)
             else:
                 if self.fusion_method == 'cat':
-                    out = torch.cat((content_vec, comment_vec, image_vec), dim=1)
-                    if not self.deep_classifier:        
-                        out = self.lin_cat(out)
-                        out = self.relu(out)
+                    out = torch.cat((content_vec, comment_vec, image_vec), dim=1)   
+                    out = self.lin_cat(out)
+                    out = self.relu(out)
                 elif self.fusion_method == 'elem_mult':
                     out = content_vec * comment_vec * image_vec
                 elif self.fusion_method == 'avg':
