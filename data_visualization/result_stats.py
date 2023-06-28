@@ -12,6 +12,7 @@ platforms = data['Platform'].unique()
 # Iterate over the platforms
 for platform in platforms:
     platform_data_w_kahan = data[data['Platform'] == platform]
+    platform_data_w_kahan = platform_data_w_kahan[platform_data_w_kahan['Classifier'] == 'Shallow']
 
     print('Platform: {}'.format(platform))
 
@@ -36,7 +37,8 @@ for platform in platforms:
             'Precision': avg_precision,
             'Recall': avg_recall,
             'Micro F1': avg_micro_f1,
-            'Macro F1': avg_macro_f1
+            'Macro F1': avg_macro_f1,
+            'F1': (avg_micro_f1 + avg_macro_f1) / 2
         }, index=[0])
         
         average_fusion_performance = pd.concat([average_fusion_performance, average_fusion_df], ignore_index=True)
@@ -63,7 +65,8 @@ for platform in platforms:
             'Precision': avg_precision,
             'Recall': avg_recall,
             'Micro F1': avg_micro_f1,
-            'Macro F1': avg_macro_f1
+            'Macro F1': avg_macro_f1,
+            'F1': (avg_micro_f1 + avg_macro_f1) / 2
         }, index=[0])
         
         average_embedding_performance = pd.concat([average_embedding_performance, average_embedding_df], ignore_index=True)
@@ -95,7 +98,8 @@ for platform in platforms:
             'Precision': avg_precision,
             'Recall': avg_recall,
             'Micro F1': avg_micro_f1,
-            'Macro F1': avg_macro_f1
+            'Macro F1': avg_macro_f1,
+            'F1': (avg_micro_f1 + avg_macro_f1) / 2
         }, index=[0])
 
         average_dim_reduction_performance = pd.concat([average_dim_reduction_performance, average_dim_reduction_df], ignore_index=True)
@@ -106,15 +110,19 @@ for platform in platforms:
 
     # Compute the top 5 configurations
     top_configurations = platform_data.groupby(['Embedding', 'Dim reduction method', 'Fusion']).mean().nlargest(5, 'Accuracy')
-    top_configurations = top_configurations[['Accuracy', 'Precision', 'Recall', 'Micro F1', 'Macro F1']]
+    # calculate the f1 score
+    top_configurations['F1'] = (top_configurations['Micro F1'] + top_configurations['Macro F1']) / 2
+    top_configurations = top_configurations[['Accuracy', 'Precision', 'Recall', 'Micro F1', 'Macro F1', 'F1']]
+    # round all numbers to 4 decimals
+    top_configurations = top_configurations.round(4)
     print("Top 5 Configurations:")
     print(top_configurations)
     print()
 
     # Filter rows for KAHAN configuration
     kahan_data = platform_data_w_kahan[(platform_data_w_kahan['KAHAN'] == 'Yes')]
-
+    # calculate the f1 score for kahan
+    kahan_data['F1'] = (kahan_data['Micro F1'] + kahan_data['Macro F1']) / 2
     # Print performance for KAHAN
     print("Performance for KAHAN:")
-    print(kahan_data[['Accuracy', 'Precision', 'Recall', 'Micro F1', 'Macro F1']])
-    print()
+    print(kahan_data[['Accuracy', 'Precision', 'Recall', 'Micro F1', 'Macro F1', 'F1']])

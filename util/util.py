@@ -6,11 +6,13 @@ from tqdm import tqdm
 from tqdm.notebook import tqdm as nbtqdm
 import matplotlib.pyplot as plt
 
+plt.rcParams.update({'font.size': 18})
+
 class Progressor:
-    """
+    '''
         This class is for costumize tqdm bar, specify bar total, print train acc, test acc and loss after bar
         calculate and print train acc, test acc and loss every updata
-    """
+    '''
     def __init__(self, mode, total, log=None):
         self.mode = mode
         self.total = total
@@ -20,7 +22,7 @@ class Progressor:
             self.progress = tqdm(total = total)
         if(mode == 'nb'):
             self.progress = nbtqdm(total = total)
-        self.progress.set_description("0 ")
+        self.progress.set_description('0 ')
             
         self.train_loss_total = 0 
         self.test_loss_total = 0  
@@ -46,7 +48,7 @@ class Progressor:
                         test_acc = self.test_acc_total/self.count)
         self.progress.update(1)
 
-        self.log.write("epoch: {}, train acc: {:.4f}, train loss: {:.4f}, valid acc: {:.4f}, test loss: {:.4f}\n".format(
+        self.log.write('epoch: {}, train acc: {:.4f}, train loss: {:.4f}, valid acc: {:.4f}, test loss: {:.4f}\n'.format(
             epoch, self.train_acc_total/self.count, self.train_loss_total/self.count, self.test_acc_total/self.count, self.test_loss_total/self.count))
         
     def reset(self, epoch):
@@ -54,7 +56,7 @@ class Progressor:
             self.progress = tqdm(total = self.total)
         if(self.mode == 'nb'):
             self.progress = nbtqdm(total = self.total)
-        self.progress.set_description("%d "%(int((epoch+1)/self.total)))
+        self.progress.set_description('%d '%(int((epoch+1)/self.total)))
         self.count = 0
 
         self.train_loss_total = 0
@@ -65,27 +67,25 @@ class Progressor:
 
 # show train acc, test acc and loss trend
 def show_result(train_acc, valid_acc, train_loss, valid_loss, save=None):
-    plt.figure(figsize=(10, 6))
-    plt.xlabel("Epochs")
-    plt.ylabel("Accuracy")
-    plt.title("Accuracy", fontsize=18)
-    plt.plot(train_acc, label = "train acc")
-    plt.plot(valid_acc, label = "valid acc")
+    plt.figure(figsize=(12, 8), dpi=1200)
+    plt.xlabel('Epochs', fontsize=20)
+    plt.ylabel('Accuracy', fontsize=20)
+    plt.plot(train_acc, label = 'train acc', linewidth=2)
+    plt.plot(valid_acc, label = 'valid acc', linewidth=2)
     plt.legend()
     if save:
-        plt.savefig("{}/{}_acc_{}".format(save[1], save[2], save[0]))
+        plt.savefig('{}/{}_acc_{}.png'.format(save[1], save[2], save[0]), bbox_inches='tight')  # save as svg, add bbox_inches='tight'
     else:
         plt.show()
 
-    plt.figure(figsize=(10, 6))
-    plt.xlabel("Epochs")
-    plt.ylabel("Loss")
-    plt.title("Loss", fontsize=18)
-    plt.plot(train_loss, label = "train loss")
-    plt.plot(valid_loss, label = "valid loss")
+    plt.figure(figsize=(12, 8), dpi=1200)
+    plt.xlabel('Epochs', fontsize=20)
+    plt.ylabel('Loss', fontsize=20)
+    plt.plot(train_loss, label = 'train loss', linewidth=2)
+    plt.plot(valid_loss, label = 'valid loss', linewidth=2)
     plt.legend()
     if save:
-        plt.savefig("{}/{}_loss_{}".format(save[1], save[2], save[0]))
+        plt.savefig('{}/{}_loss_{}.png'.format(save[1], save[2], save[0]), bbox_inches='tight')  # save as svg, add bbox_inches='tight'
     else:
         plt.show()
 
@@ -93,26 +93,27 @@ def show_result(train_acc, valid_acc, train_loss, valid_loss, save=None):
 def plot_confusion_matrix(y_true, y_pred, num_class, normalize=False, save=None):
     cm = confusion_matrix(y_true, y_pred)
     if normalize:
-        cm = cm.astype("float")/cm.sum(axis=1)[:,np.newaxis]
+        cm = cm.astype('float')/cm.sum(axis=1)[:,np.newaxis]
     else:
-        cm = cm.astype("float")/cm.sum()
+        cm = cm.astype('float')/cm.sum()
 
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=(12, 8), dpi=1200)
     plt.imshow(cm, cmap=plt.cm.Blues)
-    plt.title("Confusion matrix")
+    plt.title('Confusion matrix', fontsize=22)
     plt.colorbar()
 
-    plt.xticks(np.arange(num_class), rotation=45)
-    plt.yticks(np.arange(num_class))
+    plt.xticks(np.arange(num_class), fontsize=18, rotation=45)
+    plt.yticks(np.arange(num_class), fontsize=18)
     
     for i in range(cm.shape[0]):
         for j in range(cm.shape[1]):
-            plt.text(x=j, y=i, s=("%.2f"%cm[i][j]), va='center', ha='center')
+            color = 'black' if cm[i, j] < 0.4 else 'w'  # Change text color based on value in confusion matrix
+            plt.text(x=j, y=i, s=('%.2f'%cm[i][j]), va='center', ha='center', color=color, fontsize=25)
     
-    plt.ylabel('True label')
-    plt.xlabel('Predicted label')
+    plt.ylabel('True label', fontsize=20)
+    plt.xlabel('Predicted label', fontsize=20)
     if save: 
-        plt.savefig("{}/{}_cm_{}".format(save[1], save[2], save[0]))
+        plt.savefig('{}/{}_cm_{}.png'.format(save[1], save[2], save[0]), bbox_inches='tight')  # save as svg, add bbox_inches='tight'
     else:
         plt.show()
 
@@ -126,7 +127,7 @@ def calculate_metrics(acc, targets, predicts, log=None):
     microf1 = f1_score(targets, predicts, average='micro')
     macrof1 = f1_score(targets, predicts, average='macro')
 
-    print ("acc: {:.4f}, precision: {:.4f}, recall: {:.4f}, micro f1: {:.4f}, macro f1: {:.4f}".format(acc, precision, recall, microf1, macrof1))
-    log.write("acc: {:.4f}, precision: {:.4f}, recall: {:.4f}, micro f1: {:.4f}, macro f1: {:.4f}\n".format(acc, precision, recall, microf1, macrof1))
+    print ('acc: {:.4f}, precision: {:.4f}, recall: {:.4f}, micro f1: {:.4f}, macro f1: {:.4f}'.format(acc, precision, recall, microf1, macrof1))
+    log.write('acc: {:.4f}, precision: {:.4f}, recall: {:.4f}, micro f1: {:.4f}, macro f1: {:.4f}\n'.format(acc, precision, recall, microf1, macrof1))
 
     return acc, precision, recall, microf1, macrof1

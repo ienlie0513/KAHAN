@@ -16,6 +16,7 @@ data_analysis/*jpg
 data_analysis/*txt
 
 data_visualization/*/*png
+data_visualization/*/*tex
 
 REL
 apicache-py3
